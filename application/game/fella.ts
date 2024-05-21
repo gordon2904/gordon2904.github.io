@@ -9,17 +9,7 @@ import {
 } from 'pixi.js';
 import type { Scene } from '../components/scene';
 import RAPIER from '@dimforge/rapier2d';
-
-function getRandomRange(from: number, to: number, asInt: boolean = false) {
-    const min = Math.min(from, to);
-    const max = Math.max(from, to);
-    const randDiff = (max - min) * Math.random();
-    return asInt ? Math.round(min + randDiff) : min + randDiff;
-}
-
-function getRandomValue(...values: number[]) {
-    return values[getRandomRange(0, values.length - 1, true)];
-}
+import { getRandomRange, getRandomValue } from '../utils';
 
 export class Fella extends Container {
     private fellaSprite?: Sprite;

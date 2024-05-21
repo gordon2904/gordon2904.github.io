@@ -15,11 +15,11 @@ export abstract class Camera extends Container {
     }
 
     protected clampCamera() {
-        const maxWorldX =
-            this.scene.viewport.worldWidth - this.scene.viewport.screenWidth;
-        const maxWorldY =
-            this.scene.viewport.worldHeight - this.scene.viewport.screenHeight;
-        this.position.x = Math.max(0, Math.min(this.position.x, maxWorldX));
-        this.position.y = Math.max(0, Math.min(this.position.y, maxWorldY));
+        const minX = this.scene.viewport.screenWidth * 0.5 * this.scale.x;
+        const maxWorldX = this.scene.viewport.worldWidth - minX;
+        const minY = this.scene.viewport.screenHeight * 0.5 * this.scale.x;
+        const maxWorldY = this.scene.viewport.worldHeight - minY;
+        this.position.x = Math.max(minX, Math.min(this.position.x, maxWorldX));
+        this.position.y = Math.max(minY, Math.min(this.position.y, maxWorldY));
     }
 }

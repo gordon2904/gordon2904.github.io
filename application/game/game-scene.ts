@@ -1,7 +1,7 @@
 import { EventSystem, Sprite, Texture } from 'pixi.js';
 import { Scene } from '../components/scene';
 import { Fella } from './fella';
-import { gsap } from 'gsap';
+import { Linear, gsap } from 'gsap';
 import { FollowCamera } from '../components/camera-system/follow-camera';
 
 export class GameScene extends Scene {
@@ -20,13 +20,26 @@ export class GameScene extends Scene {
         this.setupBasicBackgrounds();
         const fella = new Fella(this);
         const followCamera = new FollowCamera(this, fella);
+        followCamera.clampToWorld = false;
+        // followCamera.scale.set(2);
         followCamera.softBounds = {
-            left: 20,
-            right: 20,
-            top: 10,
-            bottom: 10
+            left: 95,
+            right: 95,
+            top: 20,
+            bottom: 5
         };
         this.cameraSystem.setActiveCamera(followCamera);
+        gsap.timeline().fromTo(
+            followCamera,
+            { pixi: { scale: 0.5 } },
+            {
+                pixi: { scale: 1.2 },
+                duration: 2,
+                yoyo: true,
+                yoyoEase: Linear.easeNone,
+                repeat: -1
+            }
+        );
     }
 
     private setupBasicBackgrounds() {
@@ -37,7 +50,7 @@ export class GameScene extends Scene {
         for (let i = 0; i < columns; ++i) {
             for (let j = 0; j < rows; ++j) {
                 const background = new Sprite(Texture.WHITE);
-                background.tint = [Math.random(), Math.random(), Math.random()];
+                background.tint = [0, 0, Math.random()];
                 background.width = width;
                 background.height = height;
                 background.position.x = i * background.width;

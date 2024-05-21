@@ -2,6 +2,7 @@ import { Ticker, Container, Rectangle, Bounds, Sprite, Texture } from 'pixi.js';
 import type { Scene } from '../scene';
 import { Camera } from './camera';
 import { Linear, Power2, gsap } from 'gsap';
+import { getRandomRange, getRandomValue } from '~/application/utils';
 
 const targetBounds = new Rectangle();
 
@@ -41,11 +42,18 @@ interface ICameraPullins {
     pullinBottom: number;
 }
 
+const defaultHardBounds: ICameraBounds = {
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0
+};
+
 export class FollowCamera extends Camera {
     public softBoundSpeed: number = 0.2;
 
     public softBounds?: ICameraBounds;
-    public hardBounds: ICameraBounds;
+    public hardBounds?: ICameraBounds;
 
     private hardDebug: Sprite;
     private softDebug: Sprite;
@@ -54,7 +62,6 @@ export class FollowCamera extends Camera {
         super(scene);
         this.hardDebug = this.createDebugBox(0xff0000, 1);
         this.softDebug = this.createDebugBox(0x00ff00, 2);
-        console.log('hard debug: ', this.hardDebug);
     }
 
     public override update(dt: number) {
@@ -70,7 +77,8 @@ export class FollowCamera extends Camera {
     private createDebugBox(tint: number, zIndex: number) {
         const debugBox = new Sprite(Texture.WHITE);
         debugBox.tint = tint;
-        debugBox.alpha = 0.2;
+        debugBox.alpha = 0.5;
+        // debugBox.anchor.set(0.5, 0.5);
         debugBox.setParent(this);
         debugBox.zIndex = zIndex;
         debugBox.renderable = false;
@@ -78,29 +86,42 @@ export class FollowCamera extends Camera {
     }
 
     private calculateHardBounds(dt: number) {
-        this.calculateCameraBounds(hardBounds, {
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0
-        });
-        this.updateDebugBox(this.hardDebug, hardBounds);
+        this.calculateCameraBounds(
+            hardBounds,
+            this.hardBounds ?? {
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0
+            }
+        );
+        this.updateDebugBox(
+            this.hardDebug,
+            hardBounds,
+            this.hardBounds ?? defaultHardBounds
+        );
         if (this.isTargetOutsideOfBounds(targetBounds, hardBounds)) {
             this.calculateAndApplyPullIns(targetBounds, hardBounds, false, dt);
         }
     }
 
-    private updateDebugBox(box: Sprite, bounds: Rectangle) {
-        box.position.x = bounds.x - this.position.x;
-        box.position.y = bounds.y - this.position.y;
-        box.width = bounds.width;
-        box.height = bounds.height;
+    private updateDebugBox(
+        box: Sprite,
+        bounds: Rectangle,
+        cameraBounds: ICameraBounds
+    ) {
+        box.width = bounds.width / this.scale.x;
+        box.height = bounds.height / this.scale.y;
+        box.position.y =
+            -this.scene.viewport.screenHeight * 0.5 + cameraBounds.top;
+        box.position.x =
+            -this.scene.viewport.screenWidth * 0.5 + cameraBounds.left;
         // box.renderable = true;
     }
 
     private calculateSoftBounds(dt: number) {
         this.calculateCameraBounds(softBounds, this.softBounds!);
-        this.updateDebugBox(this.softDebug, softBounds);
+        this.updateDebugBox(this.softDebug, softBounds, this.softBounds!);
         if (this.isTargetOutsideOfBounds(targetBounds, softBounds)) {
             this.calculateAndApplyPullIns(targetBounds, softBounds, true, dt);
         }
@@ -130,14 +151,21 @@ export class FollowCamera extends Camera {
     ) {
         // this.target.toLocal(this.target, this.target);
         // this.toLocal(this.scene.viewport)
-        bounds.x = this.position.x + cameraBounds.left;
-        bounds.y = this.position.y + cameraBounds.top;
+        const { screenWidth, screenHeight } = this.scene.viewport;
+        const halfScreenWidth = screenWidth * 0.5;
+        const halfScreenHeight = screenHeight * 0.5;
+        bounds.x =
+            this.position.x -
+            (halfScreenWidth - cameraBounds.left) * this.scale.x;
+        bounds.y =
+            this.position.y -
+            (halfScreenHeight - cameraBounds.top) * this.scale.y;
         bounds.width =
-            this.scene.viewport.screenWidth -
-            (cameraBounds.left + cameraBounds.right);
+            (screenWidth - (cameraBounds.left + cameraBounds.right)) *
+            this.scale.x;
         bounds.height =
-            this.scene.viewport.screenHeight -
-            (cameraBounds.top + cameraBounds.bottom);
+            (screenHeight - (cameraBounds.top + cameraBounds.bottom)) *
+            this.scale.y;
     }
 
     private calculateAndApplyPullIns(
@@ -146,34 +174,60 @@ export class FollowCamera extends Camera {
         isSoft: boolean,
         dt: number
     ) {
-        //check if x
-        const xPoints = [targetBounds.x, targetBounds.x + targetBounds.width];
-        const pullinLeft = Math.max(
-            ...xPoints.map((xPoint) => {
-                return xPoint < cameraBounds.x ? cameraBounds.x - xPoint : 0;
-            })
-        );
-        const pullinRight = Math.max(
-            ...xPoints.map((xPoint) =>
-                xPoint > cameraBounds.x + cameraBounds.width
-                    ? xPoint - (cameraBounds.x + cameraBounds.width)
-                    : 0
-            )
-        );
-        //check if y
-        const yPoints = [targetBounds.y, targetBounds.y + targetBounds.height];
-        const pullinTop = Math.max(
-            ...yPoints.map((yPoint) =>
-                yPoint < cameraBounds.y ? cameraBounds.y - yPoint : 0
-            )
-        );
-        const pullinBottom = Math.max(
-            ...yPoints.map((yPoint) =>
-                yPoint > cameraBounds.y + cameraBounds.height
-                    ? yPoint - (cameraBounds.y + cameraBounds.height)
-                    : 0
-            )
-        );
+        let pullinLeft: number = 0;
+        let pullinRight: number = 0;
+        let pullinTop: number = 0;
+        let pullinBottom: number = 0;
+        if (targetBounds.width > cameraBounds.width) {
+            const targetPos = targetBounds.x + this.target.width * 0.5;
+            const amountToMove = targetPos - this.position.x;
+            const moveIsPositive = Math.sign(amountToMove) === 1;
+            pullinLeft = moveIsPositive ? 0 : Math.abs(amountToMove);
+            pullinRight = moveIsPositive ? Math.abs(amountToMove) : 0;
+        } else {
+            const xPoints = [
+                targetBounds.x,
+                targetBounds.x + targetBounds.width
+            ];
+            pullinLeft = Math.max(
+                ...xPoints.map((xPoint) => {
+                    return xPoint < cameraBounds.x
+                        ? cameraBounds.x - xPoint
+                        : 0;
+                })
+            );
+            pullinRight = Math.max(
+                ...xPoints.map((xPoint) =>
+                    xPoint > cameraBounds.x + cameraBounds.width
+                        ? xPoint - (cameraBounds.x + cameraBounds.width)
+                        : 0
+                )
+            );
+        }
+        if (targetBounds.height > cameraBounds.height) {
+            const targetPos = targetBounds.y + this.target.height * 0.5;
+            const amountToMove = targetPos - this.position.y;
+            const moveIsPositive = Math.sign(amountToMove) === 1;
+            pullinTop = moveIsPositive ? 0 : Math.abs(amountToMove);
+            pullinBottom = moveIsPositive ? Math.abs(amountToMove) : 0;
+        } else {
+            const yPoints = [
+                targetBounds.y,
+                targetBounds.y + targetBounds.height
+            ];
+            pullinTop = Math.max(
+                ...yPoints.map((yPoint) =>
+                    yPoint < cameraBounds.y ? cameraBounds.y - yPoint : 0
+                )
+            );
+            pullinBottom = Math.max(
+                ...yPoints.map((yPoint) =>
+                    yPoint > cameraBounds.y + cameraBounds.height
+                        ? yPoint - (cameraBounds.y + cameraBounds.height)
+                        : 0
+                )
+            );
+        }
 
         this.applyPullins(
             {
@@ -214,10 +268,19 @@ export class FollowCamera extends Camera {
                 dt
             );
         } else {
-            this.position.x += pullinRight;
-            this.position.x -= pullinLeft;
-            this.position.y += pullinBottom;
-            this.position.y -= pullinTop;
+            if (pullinLeft > 0 && pullinRight > 0) {
+                this.position.x += (pullinLeft + pullinRight) * 0.5;
+            } else {
+                this.position.x +=
+                    pullinLeft > pullinRight ? -pullinLeft : pullinRight;
+            }
+
+            if (pullinTop > 0 && pullinBottom > 0) {
+                this.position.y += (pullinTop + pullinBottom) * 0.5;
+            } else {
+                this.position.y +=
+                    pullinTop > pullinBottom ? -pullinTop : pullinBottom;
+            }
         }
     }
 
@@ -231,6 +294,11 @@ export class FollowCamera extends Camera {
         adjustedBounds.y -= this.scene.viewport.y;
         adjustedBounds.width /= this.scene.scale.x;
         adjustedBounds.height /= this.scene.scale.y;
+
+        adjustedBounds.x /= this.scene.viewport.scale.x;
+        adjustedBounds.y /= this.scene.viewport.scale.y;
+        adjustedBounds.width /= this.scene.viewport.scale.x;
+        adjustedBounds.height /= this.scene.viewport.scale.y;
         return adjustedBounds;
     }
 }

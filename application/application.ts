@@ -121,7 +121,7 @@ export class Application {
             return;
         }
         const dt = calculateDeltaFromTick(tick);
-        gsap.updateRoot(Ticker.shared.lastTime);
+        gsap.updateRoot(Ticker.shared.lastTime * 0.001);
         this.traverseChildren(this.activeScene, 'lateUpdate', dt);
     }
 

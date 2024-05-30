@@ -11,7 +11,7 @@ export class CameraSystem {
         if (this.activeCamera) {
             this.scene.viewport.scale.set(
                 1 / this.activeCamera.scale.x,
-                1 / this.activeCamera.scale.y
+                -1 / this.activeCamera.scale.y
             );
             this.activeCamera.update(dt);
             // this.scene.viewport.moveCorner(-10, 0);

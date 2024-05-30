@@ -5,13 +5,18 @@
   "savePath": "E:\\Documents\\GitHub\\gordon2904.github.io\\public\\assets\\spritesheets",
   "images": [],
   "folders": [
-    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui"
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/border",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/divider-fade",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/divider",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/panel",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/transparent-border",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/transparent-center"
   ],
   "packOptions": {
     "textureName": "ui",
     "textureFormat": "png",
     "removeFileExtension": true,
-    "prependFolderName": false,
+    "prependFolderName": true,
     "base64Export": false,
     "tinify": false,
     "tinifyKey": "",

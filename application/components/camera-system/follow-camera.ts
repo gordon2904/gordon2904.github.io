@@ -1,8 +1,7 @@
-import { Ticker, Container, Rectangle, Bounds, Sprite, Texture } from 'pixi.js';
+import { Container, Rectangle, Sprite, Texture } from 'pixi.js';
 import type { Scene } from '../scene';
 import { Camera } from './camera';
-import { Linear, Power2, gsap } from 'gsap';
-import { getRandomRange, getRandomValue } from '~/application/utils';
+import { Linear, gsap } from 'gsap';
 
 const targetBounds = new Rectangle();
 
@@ -58,7 +57,10 @@ export class FollowCamera extends Camera {
     private hardDebug: Sprite;
     private softDebug: Sprite;
 
-    public constructor(scene: Scene, private target: Container) {
+    public constructor(
+        scene: Scene,
+        private target: Container
+    ) {
         super(scene);
         this.hardDebug = this.createDebugBox(0xff0000, 1);
         this.softDebug = this.createDebugBox(0x00ff00, 2);
@@ -110,13 +112,13 @@ export class FollowCamera extends Camera {
         bounds: Rectangle,
         cameraBounds: ICameraBounds
     ) {
-        box.width = bounds.width / this.scale.x;
-        box.height = bounds.height / this.scale.y;
+        box.width = Math.abs(bounds.width / this.scale.x);
+        box.height = Math.abs(bounds.height / this.scale.y);
         box.position.y =
-            -this.scene.viewport.screenHeight * 0.5 + cameraBounds.top;
+            -this.scene.viewport.screenHeight * 0.5 + cameraBounds.bottom;
         box.position.x =
             -this.scene.viewport.screenWidth * 0.5 + cameraBounds.left;
-        // box.renderable = true;
+        box.renderable = true;
     }
 
     private calculateSoftBounds(dt: number) {
@@ -159,12 +161,12 @@ export class FollowCamera extends Camera {
             (halfScreenWidth - cameraBounds.left) * this.scale.x;
         bounds.y =
             this.position.y -
-            (halfScreenHeight - cameraBounds.top) * this.scale.y;
+            (halfScreenHeight - cameraBounds.bottom) * this.scale.y;
         bounds.width =
             (screenWidth - (cameraBounds.left + cameraBounds.right)) *
             this.scale.x;
         bounds.height =
-            (screenHeight - (cameraBounds.top + cameraBounds.bottom)) *
+            (screenHeight - (cameraBounds.bottom + cameraBounds.top)) *
             this.scale.y;
     }
 
@@ -299,6 +301,10 @@ export class FollowCamera extends Camera {
         adjustedBounds.y /= this.scene.viewport.scale.y;
         adjustedBounds.width /= this.scene.viewport.scale.x;
         adjustedBounds.height /= this.scene.viewport.scale.y;
+
+        adjustedBounds.width = Math.abs(adjustedBounds.width);
+        adjustedBounds.height = Math.abs(adjustedBounds.height);
+        adjustedBounds.y -= adjustedBounds.height;
         return adjustedBounds;
     }
 }

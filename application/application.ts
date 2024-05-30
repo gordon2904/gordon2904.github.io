@@ -13,12 +13,10 @@ import { Viewport } from 'pixi-viewport';
 import './pixi-plugin';
 import { gsap } from 'gsap';
 import { InitRapier } from './rapier';
+import { calculateDeltaTimeFromPixiTick } from './utils';
+import { KeyboardInputManager } from './keyboard-input-manager';
 
 let lastPerformance: number;
-function calculateDeltaFromTick(tick: number) {
-    const dtInMS = tick / Ticker.targetFPMS;
-    return dtInMS * 0.001;
-}
 function calculateRealDeltaTime() {
     const now = performance.now();
     const realDT = now - lastPerformance;
@@ -38,6 +36,7 @@ export class Application {
 
     public constructor(htmlElement: HTMLElement) {
         this.init(htmlElement);
+        KeyboardInputManager.instance.on('onKeyDown', () => {});
     }
 
     private async init(htmlElement: HTMLElement) {
@@ -47,7 +46,9 @@ export class Application {
             height: window.innerHeight,
             backgroundColor: 0x222222
         });
-        htmlElement.appendChild(this.renderer.view as any);
+        htmlElement.appendChild(
+            this.renderer.view as unknown as HTMLCanvasElement
+        );
         this.setupTickers();
         window.addEventListener('resize', this.resize.bind(this));
         await InitRapier();
@@ -92,6 +93,7 @@ export class Application {
     private traverseChildren(
         parent: Container | DisplayObject,
         emitMethod: string,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...args: any[]
     ) {
         parent.emit(emitMethod, ...args);
@@ -107,7 +109,7 @@ export class Application {
         if (!this.activeScene) {
             return;
         }
-        const dt = calculateDeltaFromTick(tick);
+        const dt = calculateDeltaTimeFromPixiTick(tick);
         this.traverseChildren(
             this.activeScene,
             'realUpdate',
@@ -120,7 +122,7 @@ export class Application {
         if (!this.activeScene) {
             return;
         }
-        const dt = calculateDeltaFromTick(tick);
+        const dt = calculateDeltaTimeFromPixiTick(tick);
         gsap.updateRoot(Ticker.shared.lastTime * 0.001);
         this.traverseChildren(this.activeScene, 'lateUpdate', dt);
     }

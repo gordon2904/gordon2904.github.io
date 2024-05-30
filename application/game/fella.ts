@@ -5,14 +5,22 @@ import {
     ObservablePoint,
     Point,
     Sprite,
-    Spritesheet
+    Spritesheet,
+    type IPointData
 } from 'pixi.js';
 import type { Scene } from '../components/scene';
-import RAPIER from '@dimforge/rapier2d';
+// import RAPIER from '@dimforge/rapier2d';
 import { getRandomRange, getRandomValue } from '../utils';
+import { KeyboardInputManager } from '../keyboard-input-manager';
+
+const yInputs = ['KeyW', 'KeyS'];
+const xInputs = ['KeyA', 'KeyD'];
+const directionalInputs = [...yInputs, ...xInputs];
 
 export class Fella extends Container {
     private fellaSprite?: Sprite;
+
+    private moveSpeed: number = 20;
 
     private flip: boolean = false;
     private direction!: ObservablePoint;
@@ -24,9 +32,10 @@ export class Fella extends Container {
         this.setupVisuals();
         this.setupPoints();
         this.on('update', this.onUpdate, this);
-        const { worldWidth, worldHeight } = this.sceneParent.viewport;
-        this.position.x = getRandomRange(0, worldWidth);
-        this.position.y = getRandomRange(0, worldHeight);
+        // const { worldWidth, worldHeight } = this.sceneParent.viewport;
+        this.position.x = 0;
+        this.position.y = 0;
+        this.setupInputListener();
         // this.rapierTest();
     }
 
@@ -74,16 +83,59 @@ export class Fella extends Container {
     //     );
     // }
 
-    private total: number = 0;
+    private directionalKeysPressed: string[] = [];
+
+    private setupInputListener() {
+        KeyboardInputManager.instance.on('onKeyDown', (event) => {
+            const match = directionalInputs.find(
+                (input) => input === event.code
+            );
+            if (match) {
+                this.directionalKeysPressed.push(event.code);
+            }
+        });
+        KeyboardInputManager.instance.on('onKeyUp', (event) => {
+            const foundIndex = this.directionalKeysPressed.findIndex(
+                (input) => input === event.code
+            );
+            if (foundIndex > -1) {
+                this.directionalKeysPressed.splice(foundIndex, 1);
+            }
+        });
+    }
+
+    private velocity: IPointData = { x: 0, y: 0 };
 
     private onUpdate(dt: number) {
-        this.move(dt);
-        this.checkBounds();
+        // this.move(dt);
+        const lastX = this.directionalKeysPressed.findLast((value) =>
+            xInputs.includes(value)
+        );
+        switch (lastX) {
+            case 'KeyA':
+                this.x -= dt * this.moveSpeed;
+                break;
+            case 'KeyD':
+                this.x += dt * this.moveSpeed;
+                break;
+        }
+
+        const lastY = this.directionalKeysPressed.findLast((value) =>
+            yInputs.includes(value)
+        );
+        switch (lastY) {
+            case 'KeyW':
+                this.y += dt * this.moveSpeed;
+                break;
+            case 'KeyS':
+                this.y -= dt * this.moveSpeed;
+                break;
+        }
     }
 
     private move(dt: number) {
-        this.position.x += dt * this.speed.x * this.direction.x;
-        this.position.y += dt * this.speed.y * this.direction.y;
+        this.position.x += dt * this.velocity.x * this.direction.x;
+        this.position.y += dt * this.velocity.y * this.direction.y;
     }
 
     private checkBounds() {
@@ -128,7 +180,7 @@ export class Fella extends Container {
     private async setupVisuals() {
         const record = await Assets.load(['sheets/ui']);
         const sheet = record['sheets/ui'] as Spritesheet;
-        const texture = sheet.textures['panel-003'];
+        const texture = sheet.textures['panel/panel-003'];
         this.fellaSprite = new Sprite(texture);
         this.addChild(this.fellaSprite);
 

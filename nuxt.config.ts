@@ -2,7 +2,9 @@
 import wasm from 'vite-plugin-wasm';
 
 export default defineNuxtConfig({
-    devtools: { enabled: true },
+    devtools: {
+        enabled: true
+    },
     vite: {
         plugins: [wasm()]
     }

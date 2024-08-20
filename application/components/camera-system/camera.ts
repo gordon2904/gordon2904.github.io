@@ -8,7 +8,7 @@ export abstract class Camera extends Container {
         this.setParent(this.scene.viewport);
     }
 
-    public update(dt: number): void {
+    public update(_dt: number): void {
         if (this.clampToWorld) {
             this.clampCamera();
         }

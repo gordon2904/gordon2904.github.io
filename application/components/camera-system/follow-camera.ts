@@ -118,7 +118,7 @@ export class FollowCamera extends Camera {
             -this.scene.viewport.screenHeight * 0.5 + cameraBounds.bottom;
         box.position.x =
             -this.scene.viewport.screenWidth * 0.5 + cameraBounds.left;
-        box.renderable = true;
+        // box.renderable = true;
     }
 
     private calculateSoftBounds(dt: number) {

@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "version": "0.6.7"
+  },
+  "savePath": "E:\\Documents\\GitHub\\gordon2904.github.io\\public\\assets\\spritesheets",
+  "images": [],
+  "folders": [
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/border",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/divider-fade",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/divider",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/panel",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/transparent-border",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/ui/transparent-center"
+  ],
+  "packOptions": {
+    "textureName": "ui",
+    "textureFormat": "png",
+    "removeFileExtension": true,
+    "prependFolderName": true,
+    "base64Export": false,
+    "tinify": false,
+    "tinifyKey": "",
+    "scale": 1,
+    "filter": "none",
+    "exporter": "pixi.js",
+    "fileName": "pack-result",
+    "savePath": "E:\\Documents\\GitHub\\gordon2904.github.io\\public\\assets\\spritesheets",
+    "width": 1024,
+    "height": 1024,
+    "fixedSize": true,
+    "powerOfTwo": true,
+    "padding": 4,
+    "extrude": 0,
+    "allowRotation": true,
+    "allowTrim": true,
+    "trimMode": "trim",
+    "alphaThreshold": "0",
+    "detectIdentical": true,
+    "packer": "MaxRectsBin",
+    "packerMethod": "BestShortSideFit"
+  }
+}

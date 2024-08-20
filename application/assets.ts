@@ -1,7 +1,7 @@
 import { type UnresolvedAsset } from 'pixi.js';
 
 const SPRITE_SHEETS = ['sheets/ui'] as const;
-type GameSpriteSheet = (typeof SPRITE_SHEETS)[number];
+export type GameSpriteSheet = (typeof SPRITE_SHEETS)[number];
 
 export const assetConfig = {
     sheets: [

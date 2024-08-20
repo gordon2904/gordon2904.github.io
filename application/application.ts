@@ -1,11 +1,4 @@
-import {
-    Container,
-    Ticker,
-    Renderer,
-    UPDATE_PRIORITY,
-    Assets,
-    DisplayObject
-} from 'pixi.js';
+import { Ticker, Renderer, UPDATE_PRIORITY, Assets } from 'pixi.js';
 import type { Scene } from './components/scene';
 import { GameScene } from './game/game-scene';
 import { assetConfig } from './assets';
@@ -13,9 +6,10 @@ import { Viewport } from 'pixi-viewport';
 import './pixi-plugin';
 import { gsap } from 'gsap';
 import { InitRapier } from './rapier';
-import { calculateDeltaTimeFromPixiTick } from './utils';
+import { calculateDeltaTimeFromPixiTick, traverseChildren } from './utils';
 import { KeyboardInputManager } from './keyboard-input-manager';
 
+let rootTime = 0;
 let lastPerformance: number;
 function calculateRealDeltaTime() {
     const now = performance.now();
@@ -40,6 +34,7 @@ export class Application {
     }
 
     private async init(htmlElement: HTMLElement) {
+        await InitRapier();
         this.mRenderer = new Renderer({
             clearBeforeRender: false,
             width: window.innerWidth,
@@ -51,7 +46,6 @@ export class Application {
         );
         this.setupTickers();
         window.addEventListener('resize', this.resize.bind(this));
-        await InitRapier();
         await this.loadAssets();
         this.setupScenes();
         this.start();
@@ -77,6 +71,7 @@ export class Application {
 
     private setupTickers() {
         gsap.ticker.remove(gsap.updateRoot);
+        Ticker.system.add(this.systemUpdate, this, UPDATE_PRIORITY.HIGH);
         Ticker.shared.add(this.update, this, UPDATE_PRIORITY.NORMAL + 2);
         Ticker.shared.add(this.lateUpdate, this, UPDATE_PRIORITY.NORMAL + 1);
         Ticker.shared.add(this.renderStage, this, UPDATE_PRIORITY.NORMAL);
@@ -90,19 +85,15 @@ export class Application {
         this.activeScene.screenSize.set(window.innerWidth, window.innerHeight);
     }
 
-    private traverseChildren(
-        parent: Container | DisplayObject,
-        emitMethod: string,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...args: any[]
-    ) {
-        parent.emit(emitMethod, ...args);
-        if (!(parent instanceof Container)) {
+    private systemUpdate() {
+        if (!this.activeScene) {
             return;
         }
-        for (let i = 0; i < parent.children.length; ++i) {
-            this.traverseChildren(parent.children[i], emitMethod, ...args);
-        }
+        traverseChildren(
+            this.activeScene,
+            'realUpdate',
+            calculateRealDeltaTime()
+        );
     }
 
     private update(tick: number) {
@@ -110,12 +101,7 @@ export class Application {
             return;
         }
         const dt = calculateDeltaTimeFromPixiTick(tick);
-        this.traverseChildren(
-            this.activeScene,
-            'realUpdate',
-            calculateRealDeltaTime()
-        );
-        this.traverseChildren(this.activeScene, 'update', dt);
+        traverseChildren(this.activeScene, 'update', dt);
     }
 
     private lateUpdate(tick: number) {
@@ -123,8 +109,9 @@ export class Application {
             return;
         }
         const dt = calculateDeltaTimeFromPixiTick(tick);
-        gsap.updateRoot(Ticker.shared.lastTime * 0.001);
-        this.traverseChildren(this.activeScene, 'lateUpdate', dt);
+        rootTime += dt;
+        gsap.updateRoot(rootTime);
+        traverseChildren(this.activeScene, 'lateUpdate', dt);
     }
 
     private renderStage() {
@@ -138,6 +125,7 @@ export class Application {
     public start() {
         this.resize();
         Ticker.shared.start();
+        Ticker.system.start();
         lastPerformance = performance.now();
     }
 }

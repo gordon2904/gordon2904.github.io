@@ -1,4 +1,4 @@
-import { Ticker } from 'pixi.js';
+import { Container, DisplayObject, Ticker } from 'pixi.js';
 
 export function getRandomRange(
     from: number,
@@ -40,4 +40,23 @@ export async function pixiDelay(
     });
 }
 
-export const EMPTY_PROMISE = new Promise<never>(() => {});
+export function traverseChildren<T extends DisplayObject = DisplayObject>(
+    parent: Container<T> | DisplayObject,
+    emitMethod: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...args: any[]
+) {
+    parent.emit(emitMethod, ...args);
+    if (!(parent instanceof Container)) {
+        return;
+    }
+    for (let i = 0; i < parent.children.length; ++i) {
+        if (parent.children[i].worldVisible) {
+            traverseChildren(parent.children[i], emitMethod, ...args);
+        }
+    }
+}
+
+export function lerp(a: number, b: number, t: number) {
+    return a + t * (b - a);
+}

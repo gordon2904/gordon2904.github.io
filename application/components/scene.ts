@@ -8,6 +8,10 @@ import {
     Container
 } from 'pixi.js';
 import { CameraSystem } from './camera-system/camera-system';
+import { RAPIER } from '~/application/rapier/rapier';
+import type { EventQueue, World } from '@dimforge/rapier2d';
+import { traverseChildren } from '../utils';
+import { getColliderInfo } from '../rapier/collision-events';
 
 interface ISceneOptions {
     cameraSize: IPointData;
@@ -15,11 +19,25 @@ interface ISceneOptions {
     worldSize: IPointData;
     events: EventSystem;
     alignment?: IPointData;
+    gravity?: IPointData;
 }
+type IDefaultSceneOptions = Required<
+    Pick<ISceneOptions, 'alignment' | 'gravity'>
+>;
 
 export type CameraFit = 'Fixed' | 'ScaleWidth' | 'ScaleHeight' | 'ScaleAll';
 
+const defaultSceneOptions: IDefaultSceneOptions = {
+    alignment: { x: 0.5, y: 0.5 },
+    gravity: { x: 0, y: -9.81 }
+};
+
 export class Scene extends Container {
+    public readonly physicsWorld: World;
+    public readonly eventQueue: EventQueue = new RAPIER.EventQueue(true);
+    protected physicsDelta: number = 0;
+    public static MAX_PHYSICS_STEPS_PER_TICK = 2;
+
     public readonly viewport: Viewport;
     protected cameraIsDirty: boolean = true;
     protected cameraPositionIsDirty: boolean = true;
@@ -66,6 +84,10 @@ export class Scene extends Container {
 
     public constructor(options: ISceneOptions) {
         super();
+        this.physicsWorld = new RAPIER.World(
+            options.gravity ?? defaultSceneOptions.gravity
+        );
+        this.physicsWorld.timestep = 1 / 50;
         this.cameraSystem = new CameraSystem(this);
         this.sortableChildren = true;
         this.viewport = new Viewport({
@@ -94,8 +116,8 @@ export class Scene extends Container {
         this.alignment = new ObservablePoint<Scene>(
             this.markCameraAsDirty,
             this,
-            options.alignment?.x ?? 0.5,
-            options.alignment?.y ?? 0.5
+            options.alignment?.x ?? defaultSceneOptions.alignment.x,
+            options.alignment?.y ?? defaultSceneOptions.alignment.y
         );
         this.on('update', this.onUpdate, this);
         this.on('lateUpdate', this.onLateUpdate, this);
@@ -125,6 +147,53 @@ export class Scene extends Container {
 
     protected onUpdate(dt: number) {
         this.checkIsDirtyAndRebuild();
+        this.onFixedUpdate(dt);
+    }
+
+    private beforePhysicsStep() {
+        traverseChildren(this, 'beforePhysicsStep', this.physicsWorld);
+    }
+
+    private afterPhysicsStep() {
+        traverseChildren(this, 'afterPhysicsStep', this.physicsWorld);
+    }
+
+    private physicsInterpolate(t: number) {
+        traverseChildren(this, 'physicsUpdate', t);
+    }
+
+    protected onFixedUpdate(dt: number) {
+        this.physicsDelta += dt;
+        const steps = Math.min(
+            Math.floor(this.physicsDelta / this.physicsWorld.timestep),
+            Scene.MAX_PHYSICS_STEPS_PER_TICK
+        );
+        if (steps >= 1) {
+            this.physicsDelta %= this.physicsWorld.timestep;
+            for (let i = 0; i < steps; ++i) {
+                this.beforePhysicsStep();
+                this.drainEventQueue();
+                this.physicsWorld.step(this.eventQueue);
+                this.afterPhysicsStep();
+            }
+        }
+        this.physicsInterpolate(this.physicsDelta / this.physicsWorld.timestep);
+    }
+
+    private drainEventQueue() {
+        this.eventQueue.drainCollisionEvents((handle1, handle2, started) => {
+            const handle1Info = getColliderInfo(handle1);
+            const handle2Info = getColliderInfo(handle2);
+            const emitterMethod = started
+                ? 'onCollisionStart'
+                : 'onCollisionLeave';
+            if (handle1Info) {
+                handle1Info.emitter.emit(emitterMethod, handle1);
+            }
+            if (handle2Info) {
+                handle2Info.emitter.emit(emitterMethod, handle2);
+            }
+        });
     }
 
     protected checkIsDirtyAndRebuild() {

@@ -6,7 +6,7 @@ import { FollowCamera } from '../components/camera-system/follow-camera';
 import { KeyboardInputManager } from '../keyboard-input-manager';
 import { Wall } from '../components/colliders/wall';
 
-const sceneHeight = 20;
+const sceneHeight = 8;
 
 export class GameScene extends Scene {
     private moveTimeline: gsap.core.Timeline = new gsap.core.Timeline({
@@ -43,10 +43,8 @@ export class GameScene extends Scene {
     }
     private set pause(value: boolean) {
         if (value) {
-            console.log('pause ticker');
             Ticker.shared.stop();
         } else {
-            console.log('start ticker');
             Ticker.shared.start();
         }
     }

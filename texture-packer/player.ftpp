@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "version": "0.6.7"
+  },
+  "savePath": "E:\\Documents\\GitHub\\gordon2904.github.io\\public\\assets\\spritesheets",
+  "images": [],
+  "folders": [
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/attack-1",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/attack-2",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/attack-3",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/block-idle",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/block-no-effect",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/block",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/death-no-blood",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/death",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/effects",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/fall",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/hurt",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/idle",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/jump",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/ledge-grab",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/roll",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/run",
+    "E:/Documents/GitHub/gordon2904.github.io/texture-packer/player/character/wall-slide"
+  ],
+  "packOptions": {
+    "textureName": "player",
+    "textureFormat": "png",
+    "removeFileExtension": true,
+    "prependFolderName": true,
+    "base64Export": false,
+    "tinify": false,
+    "tinifyKey": "",
+    "scale": 1,
+    "filter": "none",
+    "exporter": "pixi.js",
+    "fileName": "pack-result",
+    "savePath": "E:\\Documents\\GitHub\\gordon2904.github.io\\public\\assets\\spritesheets",
+    "width": 1024,
+    "height": 1024,
+    "fixedSize": true,
+    "powerOfTwo": true,
+    "padding": 4,
+    "extrude": 0,
+    "allowRotation": true,
+    "allowTrim": true,
+    "trimMode": "trim",
+    "alphaThreshold": "0",
+    "detectIdentical": true,
+    "packer": "MaxRectsBin",
+    "packerMethod": "BestShortSideFit"
+  }
+}

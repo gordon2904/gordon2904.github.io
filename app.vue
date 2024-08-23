@@ -4,11 +4,10 @@
     </client-only>
 </template>
 <script>
-import PixiApp from '@/components/pixi-app.vue';
 
 export default {
     components: {
-        PixiApp
+        'pixi-app': () => import('@/components/pixi-app.vue')
     }
 };
 </script>

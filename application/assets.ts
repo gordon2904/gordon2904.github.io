@@ -8,6 +8,10 @@ export const assetConfig = {
         {
             alias: 'sheets/ui',
             src: '/assets/spritesheets/ui.json'
-        } as UnresolvedAsset
+        } as UnresolvedAsset<GameSpriteSheet>,
+        {
+            alias: 'sheets/player',
+            src: '/assets/spritesheets/player.json'
+        } as UnresolvedAsset<GameSpriteSheet>
     ]
 } as const;

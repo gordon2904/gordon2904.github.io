@@ -60,3 +60,7 @@ export function traverseChildren<T extends DisplayObject = DisplayObject>(
 export function lerp(a: number, b: number, t: number) {
     return a + t * (b - a);
 }
+
+export function modulus(n: number, d: number) {
+    return ((n % d) + d) % d;
+}

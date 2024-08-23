@@ -1,17 +1,16 @@
 import { Viewport } from 'pixi-viewport';
 import {
-    Sprite,
-    Texture,
     type IPointData,
     EventSystem,
     ObservablePoint,
-    Container
+    Container,
+    Graphics
 } from 'pixi.js';
 import { CameraSystem } from './camera-system/camera-system';
 import { RAPIER } from '~/application/rapier/rapier';
 import type { EventQueue, World } from '@dimforge/rapier2d';
 import { traverseChildren } from '../utils';
-import { getColliderInfo } from '../rapier/collision-events';
+import { getColliderInfo } from '../rapier';
 
 interface ISceneOptions {
     cameraSize: IPointData;
@@ -80,7 +79,7 @@ export class Scene extends Container {
     public readonly cameraSize: ObservablePoint<Scene>;
     public readonly screenSize: ObservablePoint<Scene>;
     public readonly alignment: ObservablePoint<Scene>;
-    protected sceneMask: Sprite;
+    protected sceneMask: Graphics;
 
     public constructor(options: ISceneOptions) {
         super();
@@ -98,7 +97,7 @@ export class Scene extends Container {
             worldHeight: options.worldSize.y
         });
         this.viewport.setParent(this);
-        this.sceneMask = new Sprite(Texture.WHITE);
+        this.sceneMask = new Graphics();
         this.sceneMask.setParent(this);
         this.disableSceneMask();
         this.cameraSize = new ObservablePoint<Scene>(
@@ -275,7 +274,14 @@ export class Scene extends Container {
         const yScale = this.screenSize.y / this.viewport.screenHeight;
         const containScale = Math.min(xScale, yScale);
         this.scale.set(containScale, containScale);
-        this.sceneMask.width = this.viewport.screenWidth;
-        this.sceneMask.height = this.viewport.screenHeight;
+        this.sceneMask.clear();
+        this.sceneMask.beginFill(0xffffff);
+        this.sceneMask.drawRect(
+            0,
+            0,
+            this.viewport.screenWidth,
+            this.viewport.screenHeight
+        );
+        this.sceneMask.endFill();
     }
 }

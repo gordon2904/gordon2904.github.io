@@ -1,27 +1,30 @@
 import {
-    Assets,
     Point,
-    Spritesheet,
     type IPointData,
-    NineSlicePlane,
     Sprite,
-    Ticker
+    Ticker,
+    Texture,
+    Container,
+    Graphics
 } from 'pixi.js';
 import type { Scene } from '../../components/scene';
 import { lerp, pixiDelay } from '../../utils';
 import { KeyboardInputManager } from '../../keyboard-input-manager';
-import { RAPIER } from '../../rapier/rapier';
 import {
     CoefficientCombineRule,
     Collider,
+    ShapeType,
     type RigidBody,
-    type World
+    type World,
+    Cuboid
 } from '@dimforge/rapier2d';
-import { SceneActor } from '../../components/scene-actor';
+import { SceneActor } from '~/application/components/scene-actor';
 import {
+    RAPIER,
     ColliderEventEmitter,
     registerCollider
-} from '~/application/rapier/collision-events';
+} from '~/application/rapier';
+import { FellaAnimatedSprite } from './animated-sprite';
 
 const yInputs = ['KeyW', 'KeyS'];
 const xInputs = ['KeyA', 'KeyD'];
@@ -42,8 +45,13 @@ interface IMovementSettings {
     airDrag: number;
 }
 
+//sort out fella spritesheets
+
 export class Fella extends SceneActor {
-    private fellaSprite?: NineSlicePlane;
+    private animatedSprite: FellaAnimatedSprite = new FellaAnimatedSprite([
+        Texture.EMPTY
+    ]);
+    private colliderDebugSprites?: Sprite[] = [];
 
     private movementSettings: IMovementSettings = {
         acceleration: 30,
@@ -56,7 +64,6 @@ export class Fella extends SceneActor {
         jumpPower: gravity * 35
     };
 
-    private debugSprite: Sprite;
     private rigidBody: RigidBody;
     private colliders: Collider[] = [];
     private footCollider: Collider;
@@ -88,8 +95,8 @@ export class Fella extends SceneActor {
     public constructor(private sceneParent: Scene) {
         super();
         this.setParent(this.sceneParent.viewport);
-        this.setupVisuals();
         this.setupPhysics(sceneParent.physicsWorld);
+        this.setupVisuals();
         this.setupInputListener();
     }
 
@@ -111,10 +118,11 @@ export class Fella extends SceneActor {
             this.rigidBody
         );
         const footEmitter = new ColliderEventEmitter();
-        footEmitter.on('onCollisionStart', () => {
+        footEmitter.on('onCollisionStart', async () => {
             this.isGrounded = true;
+            await this.animatedSprite.playAnimation('idle', true);
         });
-        footEmitter.on('onCollisionLeave', () => {
+        footEmitter.on('onCollisionLeave', async () => {
             this.isGrounded = false;
         });
         registerCollider(this.footCollider, footEmitter);
@@ -179,8 +187,13 @@ export class Fella extends SceneActor {
             y: lerp(this.lastLocal.y, nextLocal.y, t)
         };
         this.position.copyFrom(local);
+        const currentVelY = this.rigidBody.linvel().y;
+        if (Math.sign(this.lastVelY) !== -1 && Math.sign(currentVelY) === -1) {
+            this.animatedSprite.playAnimation('fall', true);
+        }
     }
 
+    private lastVelY: number;
     protected onBeforePhysicsStep(world: World) {
         this.lastInputs.copyFrom(this.directionalInput);
         const worldTranslation = this.rigidBody.translation();
@@ -189,6 +202,7 @@ export class Fella extends SceneActor {
             this.parent
         );
         this.lastLocal.copyFrom(local);
+        this.lastVelY = this.rigidBody.linvel().y;
         this.handleHorizontalMovement(world);
     }
 
@@ -251,6 +265,7 @@ export class Fella extends SceneActor {
             return;
         }
         ++this.jumpsUsed;
+        this.animatedSprite.playAnimation('jump', false);
         const { jumpPower } = this.movementSettings;
         const vel = this.rigidBody.linvel();
         this.rigidBody.setLinvel({ x: vel.x, y: 0 }, true);
@@ -306,7 +321,8 @@ export class Fella extends SceneActor {
 
     protected onAfterPhysicsStep(_world: World) {}
 
-    protected onUpdate(_dt: number) {
+    protected onUpdate(dt: number) {
+        this.animatedSprite.update(dt);
         this.updateDirectionalInput();
     }
 
@@ -347,26 +363,41 @@ export class Fella extends SceneActor {
     }
 
     private async setupVisuals() {
-        const record = await Assets.load(['sheets/ui']);
-        const sheet = record['sheets/ui'] as Spritesheet;
-        const nineSlice = {
-            left: 12,
-            top: 12,
-            right: 12,
-            bottom: 12
-        };
-        const texture = sheet.textures['panel/panel-003'];
-        this.fellaSprite = new NineSlicePlane(
-            texture,
-            nineSlice.left,
-            nineSlice.top,
-            nineSlice.right,
-            nineSlice.bottom
-        );
-        this.addChild(this.fellaSprite);
-
-        this.fellaSprite.scale.set(1);
-        this.fellaSprite.height = 2; // / this.fellaSprite.scale.y;
-        this.fellaSprite.width = 1; // / this.fellaSprite.scale.x;
+        this.colliders.forEach((collider) => {
+            const colliderPosition = collider.translation();
+            switch (collider.shape.type) {
+                case ShapeType.Cuboid: {
+                    const cuboid = collider.shape as Cuboid;
+                    const cuboidGraphic = new Graphics();
+                    cuboidGraphic.beginFill(0x00ff00, 0.5);
+                    const { x: halfExtentX, y: halfExtentY } =
+                        cuboid.halfExtents;
+                    cuboidGraphic.drawRect(
+                        -halfExtentX,
+                        -halfExtentY,
+                        halfExtentX * 2,
+                        halfExtentY * 2
+                    );
+                    this.addChild(cuboidGraphic);
+                    cuboidGraphic.position.set(
+                        colliderPosition.x,
+                        colliderPosition.y
+                    );
+                    cuboid.halfExtents;
+                    break;
+                }
+            }
+        });
+        const debugSprite = new Sprite(Texture.WHITE);
+        debugSprite.tint = 0x00ff00;
+        debugSprite.alpha = 0.2;
+        const spriteScaler = new Container();
+        spriteScaler.x = 1;
+        spriteScaler.scale.y = -1;
+        this.addChild(spriteScaler);
+        debugSprite.height = 2; // / this.fellaSprite.scale.y;
+        debugSprite.width = 1; // / this.fellaSprite.scale.x;
+        spriteScaler.addChild(this.animatedSprite);
+        await this.animatedSprite.init();
     }
 }

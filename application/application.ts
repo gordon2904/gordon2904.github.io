@@ -8,6 +8,11 @@ import { gsap } from 'gsap';
 import { InitRapier } from './rapier';
 import { calculateDeltaTimeFromPixiTick, traverseChildren } from './utils';
 import { KeyboardInputManager } from './keyboard-input-manager';
+import Stats from 'stats.js';
+
+const stats = new Stats();
+stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+document.body.appendChild(stats.dom);
 
 let rootTime = 0;
 let lastPerformance: number;
@@ -37,8 +42,8 @@ export class Application {
         await InitRapier();
         this.mRenderer = new Renderer({
             clearBeforeRender: false,
-            width: window.innerWidth,
-            height: window.innerHeight,
+            width: window.innerWidth / window.devicePixelRatio,
+            height: window.innerHeight / window.devicePixelRatio,
             backgroundColor: 0x222222
         });
         htmlElement.appendChild(
@@ -115,11 +120,13 @@ export class Application {
     }
 
     private renderStage() {
+        stats.begin();
         this.renderer.clear();
         if (!this.activeScene) {
             return;
         }
         this.renderer.render(this.activeScene);
+        stats.end();
     }
 
     public start() {

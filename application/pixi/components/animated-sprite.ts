@@ -10,6 +10,7 @@ interface IAnimatedSpriteEvents {
     onPlay: () => void;
     onInterrupt: (progress: number) => void;
     onComplete: (elapsedSince: number) => void;
+    onReverseComplete: (elapsedSince: number) => void;
     onFrameChange: (frameIndex: number) => void;
 }
 class AnimatedSpriteEventEmitter extends EventEmitter<IAnimatedSpriteEvents> {}
@@ -142,7 +143,7 @@ export class AnimatedSprite extends Sprite {
      * Updates the object transform for rendering.
      * @param deltaTime - Time since last tick.
      */
-    update(deltaTime: number): void {
+    public update(deltaTime: number): void {
         if (!this.isPlaying) {
             return;
         }
@@ -186,13 +187,22 @@ export class AnimatedSprite extends Sprite {
         //after elapsing as far as we needed to:
         if (!this.loop) {
             if (this.currentTime < 0) {
-                this.emitter.emit('onComplete', Math.abs(this.currentTime));
+                const elapsed = Math.abs(this.currentTime);
                 this.gotoAndStop(0);
+                this.emitter.emit('onReverseComplete', elapsed);
             } else if (this.currentTime > this.totalAnimationDuration) {
                 const elapsed = this.currentTime - this.totalAnimationDuration;
-                this.emitter.emit('onComplete', elapsed);
                 this.gotoAndStop(this.textures.length - 1);
+                this.emitter.emit('onComplete', elapsed);
             }
+        } else if (
+            this.currentTime < 0 ||
+            this.currentTime > this.totalAnimationDuration
+        ) {
+            this.currentTime = modulus(
+                this.currentTime,
+                this.totalAnimationDuration
+            );
         }
         this.updateTexture();
     }

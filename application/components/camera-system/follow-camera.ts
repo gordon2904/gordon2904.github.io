@@ -54,8 +54,8 @@ export class FollowCamera extends Camera {
     public softBounds?: ICameraBounds;
     public hardBounds?: ICameraBounds;
 
-    private hardDebug: Sprite;
-    private softDebug: Sprite;
+    public readonly hardDebug: Sprite;
+    public readonly softDebug: Sprite;
 
     public constructor(
         scene: Scene,

@@ -25,8 +25,6 @@ export class GameScene extends Scene {
         this.createSceneStaticColliders();
         const fella = new Fella(this);
         const followCamera = new FollowCamera(this, fella);
-        // followCamera.clampToWorld = false;
-        // followCamera.scale.set(2);
         followCamera.hardBounds = {
             left: 1,
             right: 1,
@@ -35,7 +33,6 @@ export class GameScene extends Scene {
         };
         this.cameraSystem.setActiveCamera(followCamera);
         this.pauseListener();
-        // Ticker.shared.speed = 0.2;
     }
 
     private get pause() {

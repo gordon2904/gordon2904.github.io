@@ -1,14 +1,14 @@
 import {
     Point,
-    type IPointData,
     Sprite,
     Ticker,
     Texture,
     Container,
-    Graphics
+    Graphics,
+    ObservablePoint
 } from 'pixi.js';
 import type { Scene } from '../../components/scene';
-import { lerp, pixiDelay } from '../../utils';
+import { lerp } from '../../utils';
 import { KeyboardInputManager } from '../../keyboard-input-manager';
 import {
     CoefficientCombineRule,
@@ -25,6 +25,8 @@ import {
     registerCollider
 } from '~/application/rapier';
 import { FellaAnimatedSprite } from './animated-sprite';
+import type { FellaState } from './state-machine';
+import { PointerInputManager } from '~/application/pointer-input-manager';
 
 const yInputs = ['KeyW', 'KeyS'];
 const xInputs = ['KeyA', 'KeyD'];
@@ -51,7 +53,9 @@ export class Fella extends SceneActor {
     private animatedSprite: FellaAnimatedSprite = new FellaAnimatedSprite([
         Texture.EMPTY
     ]);
-    private colliderDebugSprites?: Sprite[] = [];
+    public get animationStateMachine(): FellaAnimatedSprite['stateMachine'] {
+        return this.animatedSprite.stateMachine;
+    }
 
     private movementSettings: IMovementSettings = {
         acceleration: 30,
@@ -72,10 +76,16 @@ export class Fella extends SceneActor {
     private get isGrounded() {
         return this.mIsGrounded;
     }
+    private get isRolling() {
+        return this.animationStateMachine.state === 'roll';
+    }
     private set isGrounded(value: boolean) {
         this.mIsGrounded = value;
         this.dashesUsed = 0;
         this.jumpsUsed = 0;
+        if (value) {
+            this.onGrounded();
+        }
     }
     private dashesUsed: number = 0;
     private dashesAvailable: number = 1;
@@ -89,15 +99,43 @@ export class Fella extends SceneActor {
         );
     }
 
-    protected isDashing: boolean = false;
-    private dashInterrupter?: (value: unknown) => void;
-
     public constructor(private sceneParent: Scene) {
         super();
+        this.directionalInput = new ObservablePoint(
+            this.onDirectionalInputChange,
+            this,
+            0,
+            0
+        );
         this.setParent(this.sceneParent.viewport);
         this.setupPhysics(sceneParent.physicsWorld);
         this.setupVisuals();
         this.setupInputListener();
+        this.setupAnimationListeners();
+        this.listenForPointer();
+    }
+
+    private listenForPointer() {
+        PointerInputManager.instance.on('onPointerDown', (event) => {
+            this.animationStateMachine.attemptAttack1();
+        });
+    }
+
+    private setupAnimationListeners() {
+        this.animationStateMachine.on(
+            'onRepeatState',
+            this.onAnimationRepeatState.bind(this)
+        );
+
+        this.animationStateMachine.on(
+            'onStateChange',
+            this.onAnimationStateChange.bind(this)
+        );
+
+        this.animatedSprite.emitter.on(
+            'onComplete',
+            this.onAnimationComplete.bind(this)
+        );
     }
 
     private setupPhysics(world: World) {
@@ -106,6 +144,7 @@ export class Fella extends SceneActor {
             RAPIER.RigidBodyDesc.dynamic()
                 .lockRotations()
                 .setTranslation(0.0, 0.0)
+                .setCcdEnabled(true)
         );
         //work this out better as its allowing wall jumps occasionally
         this.footCollider = world.createCollider(
@@ -120,7 +159,6 @@ export class Fella extends SceneActor {
         const footEmitter = new ColliderEventEmitter();
         footEmitter.on('onCollisionStart', async () => {
             this.isGrounded = true;
-            await this.animatedSprite.playAnimation('idle', true);
         });
         footEmitter.on('onCollisionLeave', async () => {
             this.isGrounded = false;
@@ -128,7 +166,7 @@ export class Fella extends SceneActor {
         registerCollider(this.footCollider, footEmitter);
 
         this.colliders.push(
-            //total body
+            // total body
             world.createCollider(
                 RAPIER.ColliderDesc.cuboid(0.5, 1)
                     .setTranslation(0.5, 1)
@@ -137,10 +175,9 @@ export class Fella extends SceneActor {
                     .setFrictionCombineRule(CoefficientCombineRule.Min),
                 this.rigidBody
             ),
-            //feet?
+            // feet
             this.footCollider
         );
-        // this.debugPhysicsGraphic();
     }
 
     private directionalKeysPressed: string[] = [];
@@ -151,7 +188,7 @@ export class Fella extends SceneActor {
                 this.jump();
             }
             if (event.code === 'Space') {
-                this.dash();
+                this.roll();
             }
             const match = directionalInputs.find(
                 (input) => input === event.code
@@ -170,12 +207,13 @@ export class Fella extends SceneActor {
         });
     }
 
-    private directionalInput: IPointData = { x: 0, y: 0 };
-
-    private facing: number = 1;
-
+    private directionalInput: Point;
     private lastInputs: Point = new Point(0, 0);
     private lastLocal: Point = new Point(0, 0);
+
+    private onDirectionalInputChange() {
+        this.goToClosestIdle();
+    }
 
     protected onPhysicsUpdate(t: number) {
         const nextLocal = this.sceneParent.viewport.toLocal(
@@ -188,12 +226,15 @@ export class Fella extends SceneActor {
         };
         this.position.copyFrom(local);
         const currentVelY = this.rigidBody.linvel().y;
-        if (Math.sign(this.lastVelY) !== -1 && Math.sign(currentVelY) === -1) {
-            this.animatedSprite.playAnimation('fall', true);
+        if (
+            !this.isGrounded &&
+            Math.abs(currentVelY) > Number.EPSILON &&
+            Math.sign(currentVelY) === -1
+        ) {
+            this.animationStateMachine.attemptFall();
         }
     }
 
-    private lastVelY: number;
     protected onBeforePhysicsStep(world: World) {
         this.lastInputs.copyFrom(this.directionalInput);
         const worldTranslation = this.rigidBody.translation();
@@ -202,7 +243,6 @@ export class Fella extends SceneActor {
             this.parent
         );
         this.lastLocal.copyFrom(local);
-        this.lastVelY = this.rigidBody.linvel().y;
         this.handleHorizontalMovement(world);
     }
 
@@ -211,15 +251,15 @@ export class Fella extends SceneActor {
         const signOfInputX = Math.sign(this.lastInputs.x);
 
         if (
-            this.isDashing &&
+            this.isRolling &&
             signOfVelX !== signOfInputX &&
             signOfInputX !== 0
         ) {
-            this.interruptDash();
+            this.onRollEnd();
         }
         const { acceleration, maxSpeed } = this.movementSettings;
 
-        if (!this.isDashing && this.lastInputs.x !== 0) {
+        if (!this.isRolling && this.lastInputs.x !== 0) {
             const velocity = this.rigidBody.linvel();
 
             if (Math.sign(velocity.x) !== Math.sign(this.lastInputs.x)) {
@@ -238,7 +278,7 @@ export class Fella extends SceneActor {
             this.footCollider.setFriction(0);
             this.rigidBody.setLinvel(velocity, true);
             this.capMovementSpeed();
-        } else if (!this.isGrounded && !this.isDashing) {
+        } else if (!this.isGrounded && !this.isRolling) {
             this.reduceSpeed(world);
         } else {
             this.footCollider.setFriction(1);
@@ -265,25 +305,30 @@ export class Fella extends SceneActor {
             return;
         }
         ++this.jumpsUsed;
-        this.animatedSprite.playAnimation('jump', false);
+        this.animationStateMachine.attemptJump();
+    }
+
+    private onJumpState() {
         const { jumpPower } = this.movementSettings;
         const vel = this.rigidBody.linvel();
         this.rigidBody.setLinvel({ x: vel.x, y: 0 }, true);
         this.rigidBody.applyImpulse({ x: 0, y: jumpPower }, true);
-        this.interruptDash();
     }
 
-    private async dash() {
-        if (this.isDashing) {
+    private roll() {
+        if (this.isRolling) {
             return;
         }
         if (this.dashesUsed >= this.dashesAvailable) {
             return;
         }
+        this.animationStateMachine.attemptRoll();
+    }
+
+    private onRollState() {
         if (!this.isGrounded) {
             ++this.dashesUsed;
         }
-        this.isDashing = true;
         this.rigidBody.setGravityScale(0, true);
         const velX = this.rigidBody.linvel().x;
         this.rigidBody.setLinvel({ x: 0, y: 0 }, true);
@@ -295,14 +340,11 @@ export class Fella extends SceneActor {
             { x: dashPower * signOfLastInput, y: 0 },
             true
         );
-        const dashInterrupter = new Promise((resolve) => {
-            this.dashInterrupter = resolve;
-        });
-        await Promise.race([pixiDelay(dashTime), dashInterrupter]);
-        this.dashInterrupter = undefined;
+    }
+
+    private onRollEnd() {
         this.rigidBody.setGravityScale(1, true);
         this.capMovementSpeed();
-        this.isDashing = false;
     }
 
     private capMovementSpeed() {
@@ -311,12 +353,6 @@ export class Fella extends SceneActor {
             Math.sign(vel.x) *
             Math.min(Math.abs(vel.x), this.movementSettings.maxSpeed);
         this.rigidBody.setLinvel(vel, true);
-    }
-
-    private interruptDash() {
-        if (this.dashInterrupter) {
-            this.dashInterrupter(1);
-        }
     }
 
     protected onAfterPhysicsStep(_world: World) {}
@@ -333,11 +369,9 @@ export class Fella extends SceneActor {
         switch (lastX) {
             case 'KeyA':
                 this.directionalInput.x = -1;
-                this.lastInputs.x = this.directionalInput.x;
                 break;
             case 'KeyD':
                 this.directionalInput.x = 1;
-                this.lastInputs.x = this.directionalInput.x;
                 break;
             default:
                 this.directionalInput.x = 0;
@@ -350,11 +384,9 @@ export class Fella extends SceneActor {
         switch (lastY) {
             case 'KeyW':
                 this.directionalInput.y = 1;
-                this.lastInputs.y = this.directionalInput.y;
                 break;
             case 'KeyS':
                 this.directionalInput.y = -1;
-                this.lastInputs.y = this.directionalInput.y;
                 break;
             default:
                 this.directionalInput.y = 0;
@@ -400,4 +432,83 @@ export class Fella extends SceneActor {
         spriteScaler.addChild(this.animatedSprite);
         await this.animatedSprite.init();
     }
+
+    private onAnimationRepeatState(state: FellaState) {
+        switch (state) {
+            case 'jump':
+                this.onJumpState();
+                break;
+        }
+    }
+
+    private onAnimationStateChange(from: FellaState, to: FellaState) {
+        // tidy up any of the froms
+        switch (from) {
+            case 'roll':
+                this.onRollEnd();
+        }
+
+        //sort out the tos
+        switch (to) {
+            case 'jump':
+                this.onJumpState();
+                break;
+            case 'roll':
+                this.onRollState();
+        }
+    }
+
+    private onAnimationComplete(timeElapsed: number) {
+        switch (this.animationStateMachine.state) {
+            //uninterruptables
+            case 'attack-1':
+            case 'attack-2':
+            case 'attack-3':
+                break;
+            case 'roll':
+                this.onRollEnd();
+                this.goToClosestIdle();
+                break;
+            default:
+                break;
+        }
+
+        //elapse by the time difference since last animation complete
+        if (this.animatedSprite.isPlaying) {
+            this.animatedSprite.update(timeElapsed);
+        }
+    }
+
+    private goToClosestIdle() {
+        if (!this.animatedSprite.loop && this.animatedSprite.isPlaying) {
+            return;
+        }
+        if (this.isGrounded) {
+            this.onGrounded();
+        } else {
+            this.animationStateMachine.attemptFall();
+        }
+    }
+
+    private onGrounded() {
+        if (this.directionalInput.x !== 0) {
+            this.animationStateMachine.attemptRun();
+        } else {
+            this.animationStateMachine.attemptIdle();
+        }
+    }
+
+    // private onInputChanged() {
+    //     // we in air
+    //     if (!this.isGrounded) {
+    //         return;
+    //     }
+
+    //     if (this.animationStateMachine.state)
+    //         if (this.lastInputs.x !== 0) {
+    //             this.animationStateMachine.attemptRun();
+    //         } else {
+    //             this.animationStateMachine.attemptIdle();
+    //         }
+    // }
 }

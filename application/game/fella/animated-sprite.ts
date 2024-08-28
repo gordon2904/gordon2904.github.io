@@ -6,27 +6,8 @@ import {
     type IPointData
 } from 'pixi.js';
 import { AnimatedSprite } from '~/application/pixi/components/animated-sprite';
-
-const ANIMATIONS = [
-    'attack-1',
-    'attack-2',
-    'attack-3',
-    'block',
-    'block-idle',
-    'block-no-effect',
-    'death',
-    'death-no-blood',
-    'fall',
-    'hurt',
-    'idle',
-    'jump',
-    'ledge-grab',
-    'roll',
-    'run',
-    'wall-slide'
-] as const;
-
-type FellaAnimation = (typeof ANIMATIONS)[number];
+import { type FellaState, FellaStateMachine } from './state-machine';
+import { FELLA_ANIMATIONS } from './consts';
 
 interface IAnimationFrameData {
     frames: number;
@@ -35,7 +16,7 @@ type AnimationKeyframeData<T extends string> = {
     [key in T]: IAnimationFrameData;
 };
 
-const animationFrameData: AnimationKeyframeData<FellaAnimation> = {
+const animationFrameData: AnimationKeyframeData<FellaState> = {
     ['attack-1']: {
         frames: 6
     },
@@ -88,31 +69,20 @@ const animationFrameData: AnimationKeyframeData<FellaAnimation> = {
 
 const DEFAULT_ANCHOR: IPointData = { x: 0.76, y: 0.96 } as const;
 export class FellaAnimatedSprite extends AnimatedSprite {
-    private animations: Map<FellaAnimation, Texture[]> = new Map();
+    private readonly animations: Map<FellaState, Texture[]> = new Map();
+    public readonly stateMachine: FellaStateMachine = new FellaStateMachine();
 
     public constructor(textures?: Texture[] | FrameObject[]) {
         super(textures);
         this.frameRate = 12;
         this.updateAnchor = true;
-
-        this.emitter.on('onComplete', (elapsed) =>
-            console.log('completed anim: ', elapsed)
-        );
-
-        this.emitter.on('onInterrupt', (progress) =>
-            console.log('interrupt anim: ', progress)
-        );
-
-        // this.emitter.on('onFrameChange', (frame) =>
-        //     console.log('frame change: ', frame)
-        // );
     }
 
     public async init() {
         const playerRecord = await Assets.load(['sheets/player']);
         const playerSheet = playerRecord['sheets/player'] as Spritesheet;
 
-        ANIMATIONS.forEach((animation) => {
+        FELLA_ANIMATIONS.forEach((animation) => {
             const textures = [];
             const { frames } = animationFrameData[animation];
             for (let i = 0; i < frames; ++i) {
@@ -123,54 +93,28 @@ export class FellaAnimatedSprite extends AnimatedSprite {
             }
             this.animations.set(animation, textures);
         });
-        this.playAnimation('idle');
+        this.stateMachine.on('onStateChange', this.onStateChange.bind(this));
+        this.playAnimation(this.stateMachine.state);
         this.height = 1;
         this.scale.x = this.scale.y;
     }
 
-    public async playAnimation(
-        animation: FellaAnimation,
-        loop: boolean = true
-    ) {
-        // this.emit('animationInterrupt');
-        this.textures = this.getAnimationTextures(animation);
+    private onStateChange(_from: FellaState, to: FellaState) {
+        this.playAnimation(to);
+    }
+
+    public async playAnimation(state: FellaState) {
+        this.textures = this.getAnimationTextures(state);
         this.play();
-        this.loop = loop;
-        console.log('start listening for interrupt - ', `"${animation}"`);
-        await Promise.race([this.onInterrupt(), this.onAnimationComplete()]);
-        // this.emitter.emit('onComplete', 0);
+        this.loop = this.isStateLoopable(state);
     }
 
-    private onInterrupt() {
-        return new Promise((resolve) => {
-            console.log('construct listener for interrupt');
-            const completeListener = () => {
-                console.log('INTERRUPT HAPPENED');
-                resolve(true);
-                removeListener();
-            };
-            const removeListener = () => {
-                this.emitter.removeListener('onInterrupt', completeListener);
-            };
-            this.emitter.addListener('onInterrupt', completeListener);
-        });
+    private isStateLoopable(state: FellaState) {
+        const loopables: FellaState[] = ['idle', 'run', 'block-idle', 'fall'];
+        return loopables.includes(state);
     }
 
-    private onAnimationComplete() {
-        return new Promise((resolve) => {
-            const completeListener = () => {
-                console.log('onComplete');
-                resolve(true);
-                removeListener();
-            };
-            const removeListener = () => {
-                this.emitter.removeListener('onComplete', completeListener);
-            };
-            this.emitter.addListener('onComplete', completeListener);
-        });
-    }
-
-    private getAnimationTextures(animation: FellaAnimation): Texture[] {
+    private getAnimationTextures(animation: FellaState): Texture[] {
         return this.animations.get(animation)!;
     }
 }

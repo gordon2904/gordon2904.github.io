@@ -9,6 +9,7 @@ import { InitRapier } from './rapier';
 import { calculateDeltaTimeFromPixiTick, traverseChildren } from './utils';
 import { KeyboardInputManager } from './keyboard-input-manager';
 import Stats from 'stats.js';
+import { PointerInputManager } from './pointer-input-manager';
 
 const stats = new Stats();
 stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
@@ -31,7 +32,14 @@ export class Application {
     public readonly stage: Viewport;
 
     private scenes: Scene[] = [];
-    private activeScene?: Scene;
+    private mActiveScene?: Scene;
+    public get activeScene(): Scene | undefined {
+        return this.mActiveScene;
+    }
+    public set activeScene(value: Scene | undefined) {
+        this.mActiveScene = value;
+        PointerInputManager.instance.setActiveScene(value);
+    }
 
     public constructor(htmlElement: HTMLElement) {
         this.init(htmlElement);

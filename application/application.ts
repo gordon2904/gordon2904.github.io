@@ -50,9 +50,18 @@ export class Application {
         await InitRapier();
         this.mRenderer = new Renderer({
             clearBeforeRender: false,
-            width: window.innerWidth / window.devicePixelRatio,
-            height: window.innerHeight / window.devicePixelRatio,
-            backgroundColor: 0x222222
+            width: window.innerWidth,
+            height: window.innerHeight,
+            backgroundColor: 0x222222,
+            eventFeatures: {
+                globalMove: true,
+                click: true,
+                move: true,
+                wheel: true
+            },
+            antialias: false,
+            eventMode: 'passive',
+            resolution: 1
         });
         htmlElement.appendChild(
             this.renderer.view as unknown as HTMLCanvasElement

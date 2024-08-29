@@ -43,7 +43,7 @@ export class StateMachine<TState extends string> extends EventEmitter<
     ): IStateMachineTransition {
         return () => {
             const includesState = fromStates.includes(this.state);
-            if (fromStates.includes(this.state)) {
+            if (includesState) {
                 this.goTo(toState);
             }
             return includesState;

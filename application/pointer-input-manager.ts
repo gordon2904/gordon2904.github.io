@@ -53,12 +53,12 @@ export class PointerInputManager extends EventEmitter<IPointerEvents> {
     }
 
     private onPointerDown(event: FederatedPointerEvent) {
-        console.log('pointer down: ', event);
+        // console.log('pointer down: ', event);
         this.emit('onPointerDown', event);
     }
 
     private onPointerUp(event: FederatedPointerEvent) {
-        console.log('pointer up: ', event);
+        // console.log('pointer up: ', event);
         this.emit('onPointerUp', event);
     }
 

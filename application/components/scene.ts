@@ -4,7 +4,8 @@ import {
     EventSystem,
     ObservablePoint,
     Container,
-    Graphics
+    Graphics,
+    Rectangle
 } from 'pixi.js';
 import { CameraSystem } from './camera-system/camera-system';
 import { RAPIER } from '~/application/rapier/rapier';
@@ -32,6 +33,8 @@ const defaultSceneOptions: IDefaultSceneOptions = {
 };
 
 export class Scene extends Container {
+    private viewportHitArea = new Rectangle();
+
     public readonly physicsWorld: World;
     public readonly eventQueue: EventQueue = new RAPIER.EventQueue(true);
     protected physicsDelta: number = 0;
@@ -94,11 +97,12 @@ export class Scene extends Container {
             screenWidth: options.cameraSize.x,
             screenHeight: options.cameraSize.y,
             worldWidth: options.worldSize.x,
-            worldHeight: options.worldSize.y
+            worldHeight: options.worldSize.y,
+            forceHitArea: this.viewportHitArea
         });
-        this.viewport.setParent(this);
         this.sceneMask = new Graphics();
         this.sceneMask.setParent(this);
+        this.viewport.setParent(this);
         this.disableSceneMask();
         this.cameraSize = new ObservablePoint<Scene>(
             this.markCameraAsDirty,
@@ -142,6 +146,8 @@ export class Scene extends Container {
 
     protected onLateUpdate(dt: number) {
         this.cameraSystem.lateUpdate(dt);
+        this.viewportHitArea.x = -this.viewport.x;
+        this.viewportHitArea.y = this.viewport.y - this.cameraSize.y;
     }
 
     protected onUpdate(dt: number) {
@@ -274,6 +280,8 @@ export class Scene extends Container {
         const yScale = this.screenSize.y / this.viewport.screenHeight;
         const containScale = Math.min(xScale, yScale);
         this.scale.set(containScale, containScale);
+        this.viewportHitArea.height = this.cameraSize.y;
+        this.viewportHitArea.width = this.cameraSize.x;
         this.sceneMask.clear();
         this.sceneMask.beginFill(0xffffff);
         this.sceneMask.drawRect(

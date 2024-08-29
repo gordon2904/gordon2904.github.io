@@ -8,7 +8,7 @@ import {
     ObservablePoint
 } from 'pixi.js';
 import type { Scene } from '../../components/scene';
-import { lerp } from '../../utils';
+import { getRandomRange, lerp } from '../../utils';
 import { KeyboardInputManager } from '../../keyboard-input-manager';
 import {
     CoefficientCombineRule,
@@ -68,6 +68,8 @@ export class Fella extends SceneActor {
         jumpPower: gravity * 35
     };
 
+    private visualsParent: Container = new Container();
+    private visuals: Container = new Container();
     private rigidBody: RigidBody;
     private colliders: Collider[] = [];
     private footCollider: Collider;
@@ -117,7 +119,9 @@ export class Fella extends SceneActor {
 
     private listenForPointer() {
         PointerInputManager.instance.on('onPointerDown', (event) => {
-            this.animationStateMachine.attemptAttack1();
+            console.log('listening for pointer');
+            const random = getRandomRange(1, 3, true);
+            (this.animationStateMachine as any)[`attemptAttack${random}`]();
         });
     }
 
@@ -236,7 +240,20 @@ export class Fella extends SceneActor {
     }
 
     protected onBeforePhysicsStep(world: World) {
+        const immovableStates: FellaState[] = [
+            'attack-1',
+            'attack-2',
+            'attack-3',
+            'block',
+            'block-idle',
+            'death',
+            'ledge-grab',
+            'hurt'
+        ];
         this.lastInputs.copyFrom(this.directionalInput);
+        if (immovableStates.includes(this.animationStateMachine.state)) {
+            this.lastInputs.x = 0;
+        }
         const worldTranslation = this.rigidBody.translation();
         const local = this.sceneParent.viewport.toLocal(
             worldTranslation,
@@ -395,6 +412,8 @@ export class Fella extends SceneActor {
     }
 
     private async setupVisuals() {
+        this.addChild(this.visualsParent);
+        this.visualsParent.addChild(this.visuals);
         this.colliders.forEach((collider) => {
             const colliderPosition = collider.translation();
             switch (collider.shape.type) {
@@ -410,7 +429,7 @@ export class Fella extends SceneActor {
                         halfExtentX * 2,
                         halfExtentY * 2
                     );
-                    this.addChild(cuboidGraphic);
+                    this.visuals.addChild(cuboidGraphic);
                     cuboidGraphic.position.set(
                         colliderPosition.x,
                         colliderPosition.y
@@ -420,15 +439,12 @@ export class Fella extends SceneActor {
                 }
             }
         });
-        const debugSprite = new Sprite(Texture.WHITE);
-        debugSprite.tint = 0x00ff00;
-        debugSprite.alpha = 0.2;
         const spriteScaler = new Container();
         spriteScaler.x = 1;
         spriteScaler.scale.y = -1;
-        this.addChild(spriteScaler);
-        debugSprite.height = 2; // / this.fellaSprite.scale.y;
-        debugSprite.width = 1; // / this.fellaSprite.scale.x;
+        this.visuals.addChild(spriteScaler);
+        this.visualsParent.x = 0.5;
+        this.visuals.x = -0.5;
         spriteScaler.addChild(this.animatedSprite);
         await this.animatedSprite.init();
     }
@@ -442,6 +458,7 @@ export class Fella extends SceneActor {
     }
 
     private onAnimationStateChange(from: FellaState, to: FellaState) {
+        console.log('state change: ', from, to);
         // tidy up any of the froms
         switch (from) {
             case 'roll':
@@ -464,6 +481,7 @@ export class Fella extends SceneActor {
             case 'attack-1':
             case 'attack-2':
             case 'attack-3':
+                this.goToClosestIdle();
                 break;
             case 'roll':
                 this.onRollEnd();

@@ -1,6 +1,5 @@
 import {
     Point,
-    Sprite,
     Ticker,
     Texture,
     Container,
@@ -34,18 +33,15 @@ const directionalInputs = [...yInputs, ...xInputs];
 const gravity = 4 * 9.81;
 const mass = gravity * 2;
 
-interface IDashSettings {
-    power: number;
-    time: number;
-}
-
 interface IMovementSettings {
     acceleration: number;
     maxSpeed: number;
     jumpPower: number;
-    dash: IDashSettings;
+    dashPower: number;
     airDrag: number;
 }
+
+const HALF_EXTENTS = { x: 0.58, y: 1 };
 
 //sort out fella spritesheets
 
@@ -61,18 +57,28 @@ export class Fella extends SceneActor {
         acceleration: 30,
         maxSpeed: 6,
         airDrag: 15,
-        dash: {
-            power: 1200,
-            time: 0.25
-        },
+        dashPower: 1200,
         jumpPower: gravity * 35
     };
+
+    public get facingDirection() {
+        return this.visualsParent.scale.x;
+    }
 
     private visualsParent: Container = new Container();
     private visuals: Container = new Container();
     private rigidBody: RigidBody;
     private colliders: Collider[] = [];
     private footCollider: Collider;
+
+    private mGroundCount: number = 0;
+    private get groundCount() {
+        return this.mGroundCount;
+    }
+    private set groundCount(value: number) {
+        this.mGroundCount = value;
+        this.isGrounded = this.groundCount > 0;
+    }
 
     private mIsGrounded: boolean = false;
     private get isGrounded() {
@@ -82,6 +88,9 @@ export class Fella extends SceneActor {
         return this.animationStateMachine.state === 'roll';
     }
     private set isGrounded(value: boolean) {
+        if (this.mIsGrounded === value) {
+            return;
+        }
         this.mIsGrounded = value;
         this.dashesUsed = 0;
         this.jumpsUsed = 0;
@@ -118,9 +127,9 @@ export class Fella extends SceneActor {
     }
 
     private listenForPointer() {
-        PointerInputManager.instance.on('onPointerDown', (event) => {
-            console.log('listening for pointer');
+        PointerInputManager.instance.on('onPointerDown', () => {
             const random = getRandomRange(1, 3, true);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (this.animationStateMachine as any)[`attemptAttack${random}`]();
         });
     }
@@ -150,11 +159,15 @@ export class Fella extends SceneActor {
                 .setTranslation(0.0, 0.0)
                 .setCcdEnabled(true)
         );
+
         //work this out better as its allowing wall jumps occasionally
         this.footCollider = world.createCollider(
-            RAPIER.ColliderDesc.cuboid(0.45, 0.1)
+            RAPIER.ColliderDesc.cuboid(
+                HALF_EXTENTS.x * 0.9,
+                HALF_EXTENTS.y * 0.1
+            )
                 .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
-                .setTranslation(0.5, 0.1)
+                .setTranslation(HALF_EXTENTS.x, HALF_EXTENTS.y * 0.1)
                 .setMass(0)
                 .setFriction(1)
                 .setFrictionCombineRule(CoefficientCombineRule.Multiply),
@@ -162,18 +175,18 @@ export class Fella extends SceneActor {
         );
         const footEmitter = new ColliderEventEmitter();
         footEmitter.on('onCollisionStart', async () => {
-            this.isGrounded = true;
+            ++this.groundCount;
         });
         footEmitter.on('onCollisionLeave', async () => {
-            this.isGrounded = false;
+            --this.groundCount;
         });
         registerCollider(this.footCollider, footEmitter);
 
         this.colliders.push(
             // total body
             world.createCollider(
-                RAPIER.ColliderDesc.cuboid(0.5, 1)
-                    .setTranslation(0.5, 1)
+                RAPIER.ColliderDesc.cuboid(HALF_EXTENTS.x, HALF_EXTENTS.y)
+                    .setTranslation(HALF_EXTENTS.x, HALF_EXTENTS.y)
                     .setMass(mass)
                     .setFriction(0)
                     .setFrictionCombineRule(CoefficientCombineRule.Min),
@@ -254,6 +267,10 @@ export class Fella extends SceneActor {
         if (immovableStates.includes(this.animationStateMachine.state)) {
             this.lastInputs.x = 0;
         }
+        this.visualsParent.scale.x =
+            this.lastInputs.x === 0
+                ? this.visualsParent.scale.x
+                : this.lastInputs.x;
         const worldTranslation = this.rigidBody.translation();
         const local = this.sceneParent.viewport.toLocal(
             worldTranslation,
@@ -333,6 +350,9 @@ export class Fella extends SceneActor {
     }
 
     private roll() {
+        if (!this.isGrounded) {
+            return;
+        }
         if (this.isRolling) {
             return;
         }
@@ -350,9 +370,10 @@ export class Fella extends SceneActor {
         const velX = this.rigidBody.linvel().x;
         this.rigidBody.setLinvel({ x: 0, y: 0 }, true);
 
-        const { power: dashPower, time: dashTime } = this.movementSettings.dash;
+        const { dashPower } = this.movementSettings;
 
-        const signOfLastInput = Math.sign(this.lastInputs.x || velX) || 1;
+        const signOfLastInput =
+            Math.sign(this.lastInputs.x || velX) || this.facingDirection;
         this.rigidBody.applyImpulse(
             { x: dashPower * signOfLastInput, y: 0 },
             true
@@ -440,11 +461,10 @@ export class Fella extends SceneActor {
             }
         });
         const spriteScaler = new Container();
-        spriteScaler.x = 1;
         spriteScaler.scale.y = -1;
         this.visuals.addChild(spriteScaler);
-        this.visualsParent.x = 0.5;
-        this.visuals.x = -0.5;
+        this.visualsParent.x = HALF_EXTENTS.x;
+        this.visuals.x = -this.visualsParent.x;
         spriteScaler.addChild(this.animatedSprite);
         await this.animatedSprite.init();
     }
@@ -458,7 +478,6 @@ export class Fella extends SceneActor {
     }
 
     private onAnimationStateChange(from: FellaState, to: FellaState) {
-        console.log('state change: ', from, to);
         // tidy up any of the froms
         switch (from) {
             case 'roll':
@@ -515,18 +534,4 @@ export class Fella extends SceneActor {
             this.animationStateMachine.attemptIdle();
         }
     }
-
-    // private onInputChanged() {
-    //     // we in air
-    //     if (!this.isGrounded) {
-    //         return;
-    //     }
-
-    //     if (this.animationStateMachine.state)
-    //         if (this.lastInputs.x !== 0) {
-    //             this.animationStateMachine.attemptRun();
-    //         } else {
-    //             this.animationStateMachine.attemptIdle();
-    //         }
-    // }
 }

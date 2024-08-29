@@ -67,7 +67,7 @@ const animationFrameData: AnimationKeyframeData<FellaState> = {
     }
 };
 
-const DEFAULT_ANCHOR: IPointData = { x: 0.76, y: 0.96 } as const;
+const DEFAULT_ANCHOR: IPointData = { x: 0.385, y: 0.96 } as const;
 export class FellaAnimatedSprite extends AnimatedSprite {
     private readonly animations: Map<FellaState, Texture[]> = new Map();
     public readonly stateMachine: FellaStateMachine = new FellaStateMachine();
@@ -95,7 +95,8 @@ export class FellaAnimatedSprite extends AnimatedSprite {
         });
         this.stateMachine.on('onStateChange', this.onStateChange.bind(this));
         this.playAnimation(this.stateMachine.state);
-        this.height = 1;
+        // this.x = 2;
+        this.height = 2.8;
         this.scale.x = this.scale.y;
     }
 

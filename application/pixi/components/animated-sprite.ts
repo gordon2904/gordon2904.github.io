@@ -178,7 +178,7 @@ export class AnimatedSprite extends Sprite {
             const framesFloored =
                 Math.sign(framesElapsed) * Math.floor(Math.abs(framesElapsed));
             this.currentFrame = modulus(
-                this.currentFrame - framesFloored,
+                this.currentFrame + framesFloored,
                 this.textures.length
             );
             this.currentFrameTime = modulus(this.currentFrameTime, frameTime);

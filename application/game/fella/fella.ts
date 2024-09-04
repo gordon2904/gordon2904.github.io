@@ -1,37 +1,17 @@
-import {
-    Point,
-    Ticker,
-    Texture,
-    Container,
-    Graphics,
-    ObservablePoint
-} from 'pixi.js';
-import type { Scene } from '../../components/scene';
-import { getRandomRange, lerp } from '../../utils';
-import { KeyboardInputManager } from '../../keyboard-input-manager';
-import {
-    CoefficientCombineRule,
-    Collider,
-    ShapeType,
-    type RigidBody,
-    type World,
-    Cuboid
-} from '@dimforge/rapier2d';
+import { Cuboid, ShapeType, type World } from '@dimforge/rapier2d';
+import { Container, Graphics, ObservablePoint, Point, Ticker } from 'pixi.js';
 import { SceneActor } from '~/application/components/scene-actor';
-import {
-    RAPIER,
-    ColliderEventEmitter,
-    registerCollider
-} from '~/application/rapier';
-import { FellaAnimatedSprite } from './animated-sprite';
-import type { FellaState } from './state-machine';
 import { PointerInputManager } from '~/application/pointer-input-manager';
+import type { Scene } from '../../components/scene';
+import { KeyboardInputManager } from '../../keyboard-input-manager';
+import { getRandomRange, lerp } from '../../utils';
+import { FellaAnimatedSprite } from './animated-sprite';
+import { FellaRigidBody } from './rigidbody';
+import type { FellaState } from './state-machine';
 
 const yInputs = ['KeyW', 'KeyS'];
 const xInputs = ['KeyA', 'KeyD'];
 const directionalInputs = [...yInputs, ...xInputs];
-const gravity = 4 * 9.81;
-const mass = gravity * 2;
 
 interface IMovementSettings {
     acceleration: number;
@@ -41,14 +21,8 @@ interface IMovementSettings {
     airDrag: number;
 }
 
-const HALF_EXTENTS = { x: 0.58, y: 1 };
-
-//sort out fella spritesheets
-
 export class Fella extends SceneActor {
-    private animatedSprite: FellaAnimatedSprite = new FellaAnimatedSprite([
-        Texture.EMPTY
-    ]);
+    private animatedSprite: FellaAnimatedSprite = new FellaAnimatedSprite();
     public get animationStateMachine(): FellaAnimatedSprite['stateMachine'] {
         return this.animatedSprite.stateMachine;
     }
@@ -58,7 +32,7 @@ export class Fella extends SceneActor {
         maxSpeed: 6,
         airDrag: 15,
         dashPower: 1200,
-        jumpPower: gravity * 35
+        jumpPower: 35
     };
 
     public get facingDirection() {
@@ -67,37 +41,12 @@ export class Fella extends SceneActor {
 
     private visualsParent: Container = new Container();
     private visuals: Container = new Container();
-    private rigidBody: RigidBody;
-    private colliders: Collider[] = [];
-    private footCollider: Collider;
+    private rigidBody: FellaRigidBody;
 
-    private mGroundCount: number = 0;
-    private get groundCount() {
-        return this.mGroundCount;
-    }
-    private set groundCount(value: number) {
-        this.mGroundCount = value;
-        this.isGrounded = this.groundCount > 0;
-    }
-
-    private mIsGrounded: boolean = false;
-    private get isGrounded() {
-        return this.mIsGrounded;
-    }
     private get isRolling() {
         return this.animationStateMachine.state === 'roll';
     }
-    private set isGrounded(value: boolean) {
-        if (this.mIsGrounded === value) {
-            return;
-        }
-        this.mIsGrounded = value;
-        this.dashesUsed = 0;
-        this.jumpsUsed = 0;
-        if (value) {
-            this.onGrounded();
-        }
-    }
+
     private dashesUsed: number = 0;
     private dashesAvailable: number = 1;
     private jumpsUsed: number = 0;
@@ -105,7 +54,7 @@ export class Fella extends SceneActor {
     private lastJump: number = Number.NEGATIVE_INFINITY;
     public get canJump() {
         return (
-            (this.isGrounded || this.jumpsUsed < this.extraJumps) &&
+            (this.rigidBody.isGrounded || this.jumpsUsed < this.extraJumps) &&
             this.lastJump !== Ticker.shared.lastTime
         );
     }
@@ -119,11 +68,15 @@ export class Fella extends SceneActor {
             0
         );
         this.setParent(this.sceneParent.viewport);
-        this.setupPhysics(sceneParent.physicsWorld);
+        this.rigidBody = new FellaRigidBody(
+            this,
+            this.sceneParent.physicsWorld
+        );
         this.setupVisuals();
         this.setupInputListener();
         this.setupAnimationListeners();
         this.listenForPointer();
+        this.setupPhysicsListeners();
     }
 
     private listenForPointer() {
@@ -132,6 +85,19 @@ export class Fella extends SceneActor {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (this.animationStateMachine as any)[`attemptAttack${random}`]();
         });
+    }
+
+    private onGroundedStateChange() {
+        this.jumpsUsed = 0;
+        this.dashesUsed = 0;
+        if (this.rigidBody.isGrounded) {
+            this.onGrounded();
+        }
+    }
+
+    private setupPhysicsListeners() {
+        this.rigidBody.on('onEnterGrounded', this.onGroundedStateChange, this);
+        this.rigidBody.on('onLeaveGrounded', this.onGroundedStateChange, this);
     }
 
     private setupAnimationListeners() {
@@ -148,52 +114,6 @@ export class Fella extends SceneActor {
         this.animatedSprite.emitter.on(
             'onComplete',
             this.onAnimationComplete.bind(this)
-        );
-    }
-
-    private setupPhysics(world: World) {
-        world.gravity.y = -gravity;
-        this.rigidBody = world.createRigidBody(
-            RAPIER.RigidBodyDesc.dynamic()
-                .lockRotations()
-                .setTranslation(0.0, 0.0)
-                .setCcdEnabled(true)
-        );
-
-        //work this out better as its allowing wall jumps occasionally
-        this.footCollider = world.createCollider(
-            RAPIER.ColliderDesc.cuboid(
-                HALF_EXTENTS.x * 0.9,
-                HALF_EXTENTS.y * 0.1
-            )
-                .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
-                .setTranslation(HALF_EXTENTS.x, HALF_EXTENTS.y * 0.1)
-                .setMass(0)
-                .setFriction(1)
-                .setFrictionCombineRule(CoefficientCombineRule.Multiply),
-            this.rigidBody
-        );
-        const footEmitter = new ColliderEventEmitter();
-        footEmitter.on('onCollisionStart', async () => {
-            ++this.groundCount;
-        });
-        footEmitter.on('onCollisionLeave', async () => {
-            --this.groundCount;
-        });
-        registerCollider(this.footCollider, footEmitter);
-
-        this.colliders.push(
-            // total body
-            world.createCollider(
-                RAPIER.ColliderDesc.cuboid(HALF_EXTENTS.x, HALF_EXTENTS.y)
-                    .setTranslation(HALF_EXTENTS.x, HALF_EXTENTS.y)
-                    .setMass(mass)
-                    .setFriction(0)
-                    .setFrictionCombineRule(CoefficientCombineRule.Min),
-                this.rigidBody
-            ),
-            // feet
-            this.footCollider
         );
     }
 
@@ -234,7 +154,7 @@ export class Fella extends SceneActor {
 
     protected onPhysicsUpdate(t: number) {
         const nextLocal = this.sceneParent.viewport.toLocal(
-            this.rigidBody.translation(),
+            this.rigidBody.translation,
             this.parent
         );
         const local = {
@@ -242,11 +162,11 @@ export class Fella extends SceneActor {
             y: lerp(this.lastLocal.y, nextLocal.y, t)
         };
         this.position.copyFrom(local);
-        const currentVelY = this.rigidBody.linvel().y;
+        const velocity = this.rigidBody.velocity;
         if (
-            !this.isGrounded &&
-            Math.abs(currentVelY) > Number.EPSILON &&
-            Math.sign(currentVelY) === -1
+            !this.rigidBody.isGrounded &&
+            Math.abs(velocity.y) > Number.EPSILON &&
+            Math.sign(velocity.y) === -1
         ) {
             this.animationStateMachine.attemptFall();
         }
@@ -271,7 +191,7 @@ export class Fella extends SceneActor {
             this.lastInputs.x === 0
                 ? this.visualsParent.scale.x
                 : this.lastInputs.x;
-        const worldTranslation = this.rigidBody.translation();
+        const worldTranslation = this.rigidBody.translation;
         const local = this.sceneParent.viewport.toLocal(
             worldTranslation,
             this.parent
@@ -281,7 +201,7 @@ export class Fella extends SceneActor {
     }
 
     private handleHorizontalMovement(world: World) {
-        const signOfVelX = Math.sign(this.rigidBody.linvel().x);
+        const signOfVelX = Math.sign(this.rigidBody.velocity.x);
         const signOfInputX = Math.sign(this.lastInputs.x);
 
         if (
@@ -293,8 +213,8 @@ export class Fella extends SceneActor {
         }
         const { acceleration, maxSpeed } = this.movementSettings;
 
-        if (!this.isRolling && this.lastInputs.x !== 0) {
-            const velocity = this.rigidBody.linvel();
+        if (this.lastInputs.x !== 0) {
+            const { velocity } = this.rigidBody;
 
             if (Math.sign(velocity.x) !== Math.sign(this.lastInputs.x)) {
                 velocity.x = 0;
@@ -309,19 +229,19 @@ export class Fella extends SceneActor {
             const velocityChange =
                 acceleration * world.timestep * this.lastInputs.x;
             velocity.x += velocityChange;
-            this.footCollider.setFriction(0);
-            this.rigidBody.setLinvel(velocity, true);
-            this.capMovementSpeed();
-        } else if (!this.isGrounded && !this.isRolling) {
+            this.rigidBody.footFriction = false;
+            this.rigidBody.setVelocity(velocity);
+            this.rigidBody.capMovement(this.movementSettings.maxSpeed, 'x');
+        } else if (!this.rigidBody.isGrounded && !this.isRolling) {
             this.reduceSpeed(world);
         } else {
-            this.footCollider.setFriction(1);
+            this.rigidBody.footFriction = true;
         }
     }
 
     private reduceSpeed(world: World) {
         const { airDrag } = this.movementSettings;
-        const velocity = this.rigidBody.linvel();
+        const { velocity } = this.rigidBody;
         const velocitySign = Math.sign(velocity.x);
         const velocityChange = airDrag * world.timestep;
 
@@ -331,7 +251,7 @@ export class Fella extends SceneActor {
         } else {
             velocity.x = velocitySign * velocity.x;
         }
-        this.rigidBody.setLinvel(velocity, true);
+        this.rigidBody.setVelocity(velocity);
     }
 
     private jump() {
@@ -344,15 +264,19 @@ export class Fella extends SceneActor {
 
     private onJumpState() {
         const { jumpPower } = this.movementSettings;
-        const vel = this.rigidBody.linvel();
-        this.rigidBody.setLinvel({ x: vel.x, y: 0 }, true);
-        this.rigidBody.applyImpulse({ x: 0, y: jumpPower }, true);
+        const { velocity } = this.rigidBody;
+        this.rigidBody.setVelocity({ x: velocity.x, y: 0 });
+        const { gravity } = this.sceneParent.physicsWorld;
+        this.rigidBody.applyImpulse({
+            x: 0,
+            y: jumpPower * Math.abs(gravity.y)
+        });
     }
 
     private roll() {
-        if (!this.isGrounded) {
-            return;
-        }
+        // if (!this.rigidBody.isGrounded) {
+        //     return;
+        // }
         if (this.isRolling) {
             return;
         }
@@ -363,34 +287,24 @@ export class Fella extends SceneActor {
     }
 
     private onRollState() {
-        if (!this.isGrounded) {
+        if (!this.rigidBody.isGrounded) {
             ++this.dashesUsed;
         }
-        this.rigidBody.setGravityScale(0, true);
-        const velX = this.rigidBody.linvel().x;
-        this.rigidBody.setLinvel({ x: 0, y: 0 }, true);
+        this.rigidBody.setGravityScale(0);
+        const velX = this.rigidBody.velocity.x;
+        this.rigidBody.setVelocity({ x: 0, y: 0 });
 
         const { dashPower } = this.movementSettings;
 
         const signOfLastInput =
             Math.sign(this.lastInputs.x || velX) || this.facingDirection;
-        this.rigidBody.applyImpulse(
-            { x: dashPower * signOfLastInput, y: 0 },
-            true
-        );
+        this.rigidBody.applyImpulse({ x: dashPower * signOfLastInput, y: 0 });
     }
 
     private onRollEnd() {
         this.rigidBody.setGravityScale(1, true);
-        this.capMovementSpeed();
-    }
-
-    private capMovementSpeed() {
-        const vel = this.rigidBody.linvel();
-        vel.x =
-            Math.sign(vel.x) *
-            Math.min(Math.abs(vel.x), this.movementSettings.maxSpeed);
-        this.rigidBody.setLinvel(vel, true);
+        this.rigidBody.capMovement(this.movementSettings.maxSpeed, 'x');
+        this.goToClosestIdle();
     }
 
     protected onAfterPhysicsStep(_world: World) {}
@@ -435,7 +349,18 @@ export class Fella extends SceneActor {
     private async setupVisuals() {
         this.addChild(this.visualsParent);
         this.visualsParent.addChild(this.visuals);
-        this.colliders.forEach((collider) => {
+        this.createDebugColliders();
+        const spriteScaler = new Container();
+        spriteScaler.scale.y = -1;
+        this.visuals.addChild(spriteScaler);
+        this.visualsParent.x = this.rigidBody.HALF_EXTENTS.x;
+        this.visuals.x = -this.visualsParent.x;
+        spriteScaler.addChild(this.animatedSprite);
+        await this.animatedSprite.init();
+    }
+
+    private createDebugColliders() {
+        this.rigidBody.colliders.forEach((collider) => {
             const colliderPosition = collider.translation();
             switch (collider.shape.type) {
                 case ShapeType.Cuboid: {
@@ -460,19 +385,13 @@ export class Fella extends SceneActor {
                 }
             }
         });
-        const spriteScaler = new Container();
-        spriteScaler.scale.y = -1;
-        this.visuals.addChild(spriteScaler);
-        this.visualsParent.x = HALF_EXTENTS.x;
-        this.visuals.x = -this.visualsParent.x;
-        spriteScaler.addChild(this.animatedSprite);
-        await this.animatedSprite.init();
     }
 
     private onAnimationRepeatState(state: FellaState) {
         switch (state) {
             case 'jump':
                 this.onJumpState();
+                this.animatedSprite.gotoAndPlay(0);
                 break;
         }
     }
@@ -520,7 +439,7 @@ export class Fella extends SceneActor {
         if (!this.animatedSprite.loop && this.animatedSprite.isPlaying) {
             return;
         }
-        if (this.isGrounded) {
+        if (this.rigidBody.isGrounded) {
             this.onGrounded();
         } else {
             this.animationStateMachine.attemptFall();

@@ -31,7 +31,6 @@ export class PointerInputManager extends EventEmitter<IPointerEvents> {
             this.lastScene = scene;
             scene.viewport.eventMode = 'dynamic';
             this.addSceneEventListeners(scene);
-            console.log('added events');
         }
     }
 
@@ -53,12 +52,10 @@ export class PointerInputManager extends EventEmitter<IPointerEvents> {
     }
 
     private onPointerDown(event: FederatedPointerEvent) {
-        // console.log('pointer down: ', event);
         this.emit('onPointerDown', event);
     }
 
     private onPointerUp(event: FederatedPointerEvent) {
-        // console.log('pointer up: ', event);
         this.emit('onPointerUp', event);
     }
 

@@ -20,6 +20,7 @@ export class GameScene extends Scene {
             worldSize: { x: 400, y: 150 },
             events
         });
+        this.physicsWorld.gravity.y = 4 * -9.81;
         this.enableSceneMask();
         this.setupBasicBackgrounds();
         this.createSceneStaticColliders();
@@ -56,9 +57,10 @@ export class GameScene extends Scene {
 
     private createSceneStaticColliders() {
         const leftWall = new Wall(this, { x: 2, y: 150 });
-        leftWall.position.x = -2;
+        leftWall.position.x = -1;
+        leftWall.position.y = 1;
         const floor = new Wall(this, { x: 400, y: 2 });
-        floor.position.y = -2;
+        floor.position.y = -1;
         const rightWall = new Wall(this, { x: 2, y: 150 });
         rightWall.position.x = 400;
         const test = new Wall(this, { x: 2, y: 2 });

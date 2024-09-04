@@ -1,10 +1,4 @@
-import {
-    Assets,
-    Spritesheet,
-    Texture,
-    type FrameObject,
-    type IPointData
-} from 'pixi.js';
+import { Assets, Spritesheet, Texture, type IPointData } from 'pixi.js';
 import { AnimatedSprite } from '~/application/pixi/components/animated-sprite';
 import { type FellaState, FellaStateMachine } from './state-machine';
 import { FELLA_ANIMATIONS } from './consts';
@@ -72,8 +66,8 @@ export class FellaAnimatedSprite extends AnimatedSprite {
     private readonly animations: Map<FellaState, Texture[]> = new Map();
     public readonly stateMachine: FellaStateMachine = new FellaStateMachine();
 
-    public constructor(textures?: Texture[] | FrameObject[]) {
-        super(textures);
+    public constructor() {
+        super([Texture.EMPTY]);
         this.frameRate = 12;
         this.updateAnchor = true;
     }

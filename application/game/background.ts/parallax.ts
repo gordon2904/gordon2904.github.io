@@ -53,9 +53,6 @@ export class ParallaxBackground extends Container {
             sprite.tileScale.x = this.scene.cameraSize.x / sprite.texture.width;
             sprite.tileScale.y =
                 this.scene.cameraSize.y / sprite.texture.height;
-            // sprite.texture.height /
-            // (this.scene.viewport.worldHeight * sprite.scaling.y);
-            console.log('scale: ', sprite.tileScale.x);
         });
     }
 

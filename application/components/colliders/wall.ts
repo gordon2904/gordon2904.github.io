@@ -51,20 +51,12 @@ export class Wall extends Container {
                 this.parent,
                 tempLocal
             );
-            console.log(this.x, this.y);
             switch (collider.shape.type) {
                 case ShapeType.Cuboid: {
                     const cuboid = collider.shape as Cuboid;
                     this.graphics.beginFill(i === 0 ? 0x00ff00 : 0xff0000, 0.5);
                     const { x: halfExtentX, y: halfExtentY } =
                         cuboid.halfExtents;
-                    // if (i === 0) {
-                    //     console.log('drawing rect: ', tempLocal.x, tempLocal.y);
-                    // }
-                    console.log('local: ', tempLocal.y, halfExtentY, this.y);
-                    console.log(
-                        `drawRect(${tempLocal.x + halfExtentX}, ${tempLocal.y + halfExtentY}, ${halfExtentX * 2}, ${halfExtentY * 2})`
-                    );
                     this.graphics.drawRect(
                         tempLocal.x - halfExtentX - this.x, //tempLocal.x + halfExtentX,
                         tempLocal.y - halfExtentY - this.y,

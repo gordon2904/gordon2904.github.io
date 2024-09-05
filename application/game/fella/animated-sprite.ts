@@ -1,4 +1,10 @@
-import { Assets, Spritesheet, Texture, type IPointData } from 'pixi.js';
+import {
+    Assets,
+    Spritesheet,
+    Texture,
+    type IPointData,
+    SCALE_MODES
+} from 'pixi.js';
 import { AnimatedSprite } from '~/application/pixi/components/animated-sprite';
 import { type FellaState, FellaStateMachine } from './state-machine';
 import { FELLA_ANIMATIONS } from './consts';
@@ -75,6 +81,7 @@ export class FellaAnimatedSprite extends AnimatedSprite {
     public async init() {
         const playerRecord = await Assets.load(['sheets/player']);
         const playerSheet = playerRecord['sheets/player'] as Spritesheet;
+        playerSheet.baseTexture.scaleMode = SCALE_MODES.NEAREST;
 
         FELLA_ANIMATIONS.forEach((animation) => {
             const textures = [];

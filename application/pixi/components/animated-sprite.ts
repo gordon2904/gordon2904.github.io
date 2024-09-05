@@ -91,9 +91,8 @@ export class AnimatedSprite extends Sprite {
         if (!this.mIsPlaying) {
             return;
         }
-        this.emitter.emit('onStop');
-
         this.mIsPlaying = false;
+        this.emitter.emit('onStop');
     }
 
     /** Plays the AnimatedSprite. */
@@ -101,9 +100,8 @@ export class AnimatedSprite extends Sprite {
         if (this.mIsPlaying) {
             return;
         }
-        this.emitter.emit('onPlay');
-
         this.mIsPlaying = true;
+        this.emitter.emit('onPlay');
     }
 
     /**

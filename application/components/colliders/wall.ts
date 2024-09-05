@@ -2,19 +2,30 @@ import {
     Container,
     ObservablePoint,
     type IPointData,
-    Sprite,
-    Texture
+    Graphics,
+    Point
 } from 'pixi.js';
 import type { Scene } from '../scene';
-import type { Collider, World } from '@dimforge/rapier2d';
+import {
+    ShapeType,
+    type Collider,
+    type World,
+    Cuboid
+} from '@dimforge/rapier2d';
 import { RAPIER } from '../../rapier/rapier';
 
-export class Wall extends Container {
-    public readonly collider: Collider;
-    public readonly size: ObservablePoint;
-    private debugSprite: Sprite;
+const tempLocal = new Point();
 
-    public constructor(parent: Scene, size: IPointData) {
+export class Wall extends Container {
+    public readonly wallCollider: Collider;
+    public readonly size: ObservablePoint;
+    protected colliders: Collider[] = [];
+    private graphics: Graphics = new Graphics();
+
+    public constructor(
+        private sceneParent: Scene,
+        size: IPointData
+    ) {
         super();
         this.size = new ObservablePoint(
             this.onSizeChange.bind(this),
@@ -22,41 +33,72 @@ export class Wall extends Container {
             size.x,
             size.y
         );
-        parent.viewport.addChild(this);
-        this.collider = this.setupCollider(parent.physicsWorld);
+        sceneParent.viewport.addChild(this);
+        this.addChild(this.graphics);
+        this.graphics.renderable = false;
+        this.wallCollider = this.setupCollider(sceneParent.physicsWorld);
+        this.colliders.push(this.wallCollider);
         this.position.cb = this.onPositionChanged.bind(this);
-        this.createDebugGraphic();
         this.DEBUG();
     }
 
-    private createDebugGraphic() {
-        this.debugSprite = new Sprite(Texture.WHITE);
-        this.debugSprite.renderable = false;
-        this.debugSprite.tint = 0xffffff;
-        this.debugSprite.alpha = 0.3;
-        this.addChild(this.debugSprite);
-        this.drawGraphic();
-    }
-
-    private drawGraphic() {
-        this.debugSprite.width = this.size.x;
-        this.debugSprite.height = this.size.y;
+    private drawGraphics() {
+        this.graphics.clear();
+        this.colliders.forEach((collider, i) => {
+            const colliderPosition = collider.translation();
+            this.sceneParent.viewport.toLocal(
+                colliderPosition,
+                this.parent,
+                tempLocal
+            );
+            console.log(this.x, this.y);
+            switch (collider.shape.type) {
+                case ShapeType.Cuboid: {
+                    const cuboid = collider.shape as Cuboid;
+                    this.graphics.beginFill(i === 0 ? 0x00ff00 : 0xff0000, 0.5);
+                    const { x: halfExtentX, y: halfExtentY } =
+                        cuboid.halfExtents;
+                    // if (i === 0) {
+                    //     console.log('drawing rect: ', tempLocal.x, tempLocal.y);
+                    // }
+                    console.log('local: ', tempLocal.y, halfExtentY, this.y);
+                    console.log(
+                        `drawRect(${tempLocal.x + halfExtentX}, ${tempLocal.y + halfExtentY}, ${halfExtentX * 2}, ${halfExtentY * 2})`
+                    );
+                    this.graphics.drawRect(
+                        tempLocal.x - halfExtentX - this.x, //tempLocal.x + halfExtentX,
+                        tempLocal.y - halfExtentY - this.y,
+                        halfExtentX * 2,
+                        halfExtentY * 2
+                    );
+                    break;
+                }
+            }
+        });
     }
 
     private onPositionChanged() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (this.transform as any).onChange();
         this.setColliderPosition();
+        this.drawGraphics();
     }
 
     private onSizeChange() {
-        this.collider.setHalfExtents({ x: this.size.x, y: this.size.y });
+        this.setColliderSizes();
         this.setColliderPosition();
-        this.drawGraphic();
+        this.drawGraphics();
     }
 
-    private setColliderPosition() {
-        this.collider.setTranslation({
+    protected setColliderSizes() {
+        this.wallCollider.setHalfExtents({
+            x: this.size.x * 0.5,
+            y: this.size.y * 0.5
+        });
+    }
+
+    protected setColliderPosition() {
+        this.wallCollider.setTranslation({
             x: this.x + this.size.x / 2,
             y: this.y + this.size.y / 2
         });
@@ -72,6 +114,6 @@ export class Wall extends Container {
     }
 
     public DEBUG() {
-        this.debugSprite.renderable = true;
+        this.graphics.renderable = true;
     }
 }

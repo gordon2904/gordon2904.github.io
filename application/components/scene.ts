@@ -264,6 +264,8 @@ export class Scene extends Container {
         this.calculateSceneScaling();
         this.rebuildScenePosition();
         this.cameraIsDirty = false;
+
+        traverseChildren(this, 'sceneRebuilt');
     }
 
     protected rebuildScenePosition() {

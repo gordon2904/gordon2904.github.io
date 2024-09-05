@@ -77,6 +77,15 @@ export class Fella extends SceneActor {
         this.setupAnimationListeners();
         this.listenForPointer();
         this.setupPhysicsListeners();
+        this.setInitialLocal();
+    }
+
+    private setInitialLocal() {
+        this.sceneParent.viewport.toLocal(
+            this.rigidBody.translation,
+            this.parent,
+            this.lastLocal
+        );
     }
 
     private listenForPointer() {
@@ -304,6 +313,7 @@ export class Fella extends SceneActor {
     private onRollEnd() {
         this.rigidBody.setGravityScale(1, true);
         this.rigidBody.capMovement(this.movementSettings.maxSpeed, 'x');
+        this.animatedSprite.stop();
         this.goToClosestIdle();
     }
 
@@ -360,26 +370,23 @@ export class Fella extends SceneActor {
     }
 
     private createDebugColliders() {
-        this.rigidBody.colliders.forEach((collider) => {
-            const colliderPosition = collider.translation();
+        this.rigidBody.colliders.forEach((collider, i) => {
+            // const colliderPosition = collider.translation();
             switch (collider.shape.type) {
                 case ShapeType.Cuboid: {
                     const cuboid = collider.shape as Cuboid;
                     const cuboidGraphic = new Graphics();
-                    cuboidGraphic.beginFill(0x00ff00, 0.5);
+                    cuboidGraphic.beginFill(i === 0 ? 0x00ff00 : 0xff0000, 0.5);
                     const { x: halfExtentX, y: halfExtentY } =
                         cuboid.halfExtents;
                     cuboidGraphic.drawRect(
-                        -halfExtentX,
-                        -halfExtentY,
+                        0,
+                        0,
                         halfExtentX * 2,
                         halfExtentY * 2
                     );
                     this.visuals.addChild(cuboidGraphic);
-                    cuboidGraphic.position.set(
-                        colliderPosition.x,
-                        colliderPosition.y
-                    );
+                    cuboidGraphic.position.set(0, 0);
                     cuboid.halfExtents;
                     break;
                 }
@@ -423,7 +430,6 @@ export class Fella extends SceneActor {
                 break;
             case 'roll':
                 this.onRollEnd();
-                this.goToClosestIdle();
                 break;
             default:
                 break;

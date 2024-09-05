@@ -142,8 +142,10 @@ export class Application {
         if (!this.activeScene) {
             return;
         }
+        traverseChildren(this.activeScene, 'beforeRender');
         this.renderer.render(this.activeScene);
         stats.end();
+        traverseChildren(this.activeScene, 'afterRender');
     }
 
     public start() {

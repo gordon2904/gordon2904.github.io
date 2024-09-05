@@ -1,14 +1,18 @@
-import { EventSystem, Sprite, Texture, Ticker } from 'pixi.js';
+import { EventSystem, Ticker } from 'pixi.js';
 import { Scene } from '../components/scene';
 import { Fella } from './fella';
 import { gsap } from 'gsap';
 import { FollowCamera } from '../components/camera-system/follow-camera';
 import { KeyboardInputManager } from '../keyboard-input-manager';
 import { Wall } from '../components/colliders/wall';
+import { ParallaxBackground } from './background.ts/parallax';
+import { Floor } from '../components/colliders/floor';
 
 const sceneHeight = 8;
 
 export class GameScene extends Scene {
+    private background: ParallaxBackground;
+
     private moveTimeline: gsap.core.Timeline = new gsap.core.Timeline({
         paused: true
     });
@@ -20,9 +24,10 @@ export class GameScene extends Scene {
             worldSize: { x: 400, y: 150 },
             events
         });
+        this.background = new ParallaxBackground(this);
+        this.addChildAt(this.background, 0);
         this.physicsWorld.gravity.y = 4 * -9.81;
         this.enableSceneMask();
-        this.setupBasicBackgrounds();
         this.createSceneStaticColliders();
         const fella = new Fella(this);
         const followCamera = new FollowCamera(this, fella);
@@ -59,30 +64,12 @@ export class GameScene extends Scene {
         const leftWall = new Wall(this, { x: 2, y: 150 });
         leftWall.position.x = -1;
         leftWall.position.y = 1;
-        const floor = new Wall(this, { x: 400, y: 2 });
+        const floor = new Floor(this, { x: 400, y: 2 });
         floor.position.y = -1;
         const rightWall = new Wall(this, { x: 2, y: 150 });
         rightWall.position.x = 400;
-        const test = new Wall(this, { x: 2, y: 2 });
+        const test = new Floor(this, { x: 2, y: 2 });
         test.position.set(5, 5);
-    }
-
-    private setupBasicBackgrounds() {
-        const columns = 18;
-        const rows = 3;
-        const width = this.viewport.worldWidth / columns;
-        const height = this.viewport.worldHeight / rows;
-        for (let i = 0; i < columns; ++i) {
-            for (let j = 0; j < rows; ++j) {
-                const background = new Sprite(Texture.WHITE);
-                background.tint = [0, 0, Math.random()];
-                background.width = width;
-                background.height = height;
-                background.position.x = i * background.width;
-                background.position.y = j * background.height;
-                this.viewport.addChild(background);
-            }
-        }
     }
 
     public test() {

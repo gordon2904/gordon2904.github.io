@@ -67,6 +67,7 @@ export class FellaRigidBody extends EventEmitter<IFellaRigidBodyEvents> {
                 .setTranslation(this.fella.x, this.fella.y)
                 .setCcdEnabled(true)
         );
+        this.rigidBody.setTranslation({ x: 2, y: 3 }, true);
         this.defaultMass = Math.abs(physicsWorld.gravity.y) * 2;
         this.setupHitboxes();
     }

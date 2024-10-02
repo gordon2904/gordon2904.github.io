@@ -1,23 +1,20 @@
-import { Assets, Container, SCALE_MODES, Sprite, Spritesheet } from 'pixi.js';
+import { Power2 } from 'gsap';
+import { Assets, Container, SCALE_MODES, Spritesheet } from 'pixi.js';
 import type { Scene } from '~/application/components/scene';
 import { ParallaxSprite } from './parallax-sprite';
 
 export class ParallaxBackground extends Container {
-    private sprites: Sprite[] = [];
     private parallaxSprites: ParallaxSprite[] = [];
 
     public constructor(private scene: Scene) {
         super();
+        this.setParent(this.scene.viewport);
         this.setupSprites();
         this.on('sceneRebuilt', this.onSceneRebuilt, this);
         this.on('lateUpdate', this.onLateUpdate, this);
     }
 
     private async setupSprites() {
-        // const testBackground = new Sprite(Texture.WHITE);
-        // testBackground.tint = 0x335533;
-        // this.addChild(testBackground);
-        // this.sprites.push(testBackground);
         this.setupEnvironmentLayers();
     }
 
@@ -27,32 +24,39 @@ export class ParallaxBackground extends Container {
             'sheets/environment'
         ] as Spritesheet;
         environmentSheet.baseTexture.scaleMode = SCALE_MODES.NEAREST;
-
-        for (let i = 0; i < 3; ++i) {
+        const scaleFactor = -1;
+        const layerCount = 3;
+        const multiple = 1 / layerCount;
+        for (let i = 0; i < layerCount; ++i) {
             const layer = i + 1;
-            const scalingMulti = i;
             const texture =
                 environmentSheet.textures[`environment/layer-${layer}`];
             const sprite = new ParallaxSprite(texture);
-            sprite.scaling.x = scalingMulti * (1 / 2);
+            const t = (i + 1) * multiple;
+            console.log('t: ', t);
+            sprite.scaling.x =
+                i === 2 ? 0 : Power2.easeInOut(1 - t) * scaleFactor;
+
+            console.log('scaling: ', sprite.scaling.x);
             sprite.scaling.y = 0;
-            scalingMulti * (1 / 2);
             this.addChild(sprite);
             this.parallaxSprites.push(sprite);
         }
     }
 
     private onSceneRebuilt() {
-        this.sprites.forEach((sprite) => {
-            sprite.width = this.scene.cameraSize.x;
-            sprite.height = this.scene.cameraSize.y;
-        });
+        const backgroundScale = 1.25;
         this.parallaxSprites.forEach((sprite) => {
-            sprite.width = this.scene.cameraSize.x;
-            sprite.height = this.scene.cameraSize.y;
-            sprite.tileScale.x = this.scene.cameraSize.x / sprite.texture.width;
-            sprite.tileScale.y =
-                this.scene.cameraSize.y / sprite.texture.height;
+            sprite.width = this.scene.viewport.worldWidth;
+            sprite.height = backgroundScale * this.scene.cameraSize.y;
+            const scale = Math.min(
+                (backgroundScale * this.scene.cameraSize.x) /
+                    sprite.texture.width,
+                (backgroundScale * this.scene.cameraSize.y) /
+                    sprite.texture.height
+            );
+            sprite.tileScale.x = scale;
+            sprite.tileScale.y = -scale;
         });
     }
 

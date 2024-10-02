@@ -25,7 +25,6 @@ export class GameScene extends Scene {
             events
         });
         this.background = new ParallaxBackground(this);
-        this.addChildAt(this.background, 0);
         this.physicsWorld.gravity.y = 4 * -9.81;
         this.enableSceneMask();
         this.createSceneStaticColliders();
